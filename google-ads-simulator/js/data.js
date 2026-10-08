@@ -1,0 +1,440 @@
+/* Google Ads Simulator – Stammdaten: Branchen, Märkte, Standorte, Zielgruppen, Ereignisse */
+(function () {
+  const G = (globalThis.GA = globalThis.GA || {});
+  const U = G.U;
+
+  // ---------- Tageszeit-Kurven (Anteil Suchanfragen je Stunde) ----------
+  const HOURS = {
+    consumer: [12, 7, 5, 4, 4, 8, 18, 32, 42, 48, 52, 54, 55, 54, 53, 53, 55, 58, 62, 68, 74, 72, 60, 34],
+    b2b: [4, 2, 2, 2, 3, 6, 16, 42, 72, 86, 88, 84, 70, 78, 84, 82, 74, 58, 38, 28, 22, 18, 12, 7],
+    emergency: [26, 22, 18, 16, 16, 20, 30, 42, 50, 54, 56, 56, 55, 54, 54, 55, 56, 58, 56, 52, 46, 40, 36, 30],
+    travel: [14, 8, 5, 4, 4, 7, 14, 26, 36, 42, 46, 48, 50, 48, 46, 46, 48, 54, 62, 72, 80, 76, 60, 34],
+  };
+  // Conversion-Rate-Multiplikator je Stunde
+  const HOUR_CVR = {
+    consumer: [0.75, 0.7, 0.65, 0.65, 0.7, 0.8, 0.9, 0.95, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.05, 1.1, 1.12, 1.12, 1.08, 0.95, 0.85],
+    b2b: [0.5, 0.45, 0.45, 0.45, 0.5, 0.7, 0.85, 1, 1.15, 1.2, 1.2, 1.15, 1.0, 1.1, 1.15, 1.12, 1.05, 0.95, 0.8, 0.7, 0.65, 0.6, 0.55, 0.5],
+    emergency: [1.25, 1.25, 1.2, 1.2, 1.15, 1.1, 1.05, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.05, 1.1, 1.15, 1.2, 1.25],
+    travel: [0.8, 0.7, 0.65, 0.65, 0.7, 0.75, 0.85, 0.9, 0.95, 1, 1, 1, 1, 1, 1, 1, 1, 1.05, 1.1, 1.15, 1.15, 1.1, 1.0, 0.9],
+  };
+  for (const k in HOURS) { const s = U.sum(HOURS[k]); HOURS[k] = HOURS[k].map((x) => x / s); }
+
+  // ---------- Suchanfragen-Modifikatoren ----------
+  const MODS = {
+    base: { t: '{k}', vol: 1, intent: 1, cpc: 1 },
+    kaufen: { t: '{k} kaufen', vol: 0.22, intent: 1.7, cpc: 1.25 },
+    guenstig: { t: '{k} günstig', vol: 0.18, intent: 1.15, cpc: 0.95 },
+    online: { t: '{k} online', vol: 0.1, intent: 1.35, cpc: 1.1 },
+    test: { t: '{k} test', vol: 0.09, intent: 0.55, cpc: 0.8 },
+    vergleich: { t: '{k} vergleich', vol: 0.08, intent: 0.85, cpc: 1.05 },
+    kostenlos: { t: '{k} kostenlos', vol: 0.06, intent: 0.12, cpc: 0.5 },
+    erfahrungen: { t: '{k} erfahrungen', vol: 0.05, intent: 0.5, cpc: 0.7 },
+    gebraucht: { t: '{k} gebraucht', vol: 0.05, intent: 0.25, cpc: 0.5 },
+    jobs: { t: '{k} jobs', vol: 0.03, intent: 0.02, cpc: 0.3 },
+    wasist: { t: 'was ist {k}', vol: 0.04, intent: 0.06, cpc: 0.3 },
+    naehe: { t: '{k} in der nähe', vol: 0.16, intent: 1.6, cpc: 1.3 },
+    preise: { t: '{k} preise', vol: 0.1, intent: 1.1, cpc: 1.1 },
+    kosten: { t: '{k} kosten', vol: 0.1, intent: 0.95, cpc: 1.05 },
+    angebot: { t: '{k} angebot', vol: 0.08, intent: 1.4, cpc: 1.1 },
+    sale: { t: '{k} sale', vol: 0.08, intent: 1.3, cpc: 1.0 },
+    notdienst: { t: '{k} notdienst', vol: 0.12, intent: 1.9, cpc: 1.4 },
+    buchen: { t: '{k} buchen', vol: 0.12, intent: 1.7, cpc: 1.25 },
+    lastminute: { t: '{k} last minute', vol: 0.08, intent: 1.5, cpc: 1.1 },
+    bewertungen: { t: '{k} bewertungen', vol: 0.06, intent: 0.6, cpc: 0.7 },
+    rechner: { t: '{k} rechner', vol: 0.1, intent: 1.3, cpc: 1.15 },
+    kuendigen: { t: '{k} kündigen', vol: 0.07, intent: 0.35, cpc: 0.6 },
+    app: { t: '{k} app', vol: 0.1, intent: 0.9, cpc: 0.9 },
+    anfaenger: { t: '{k} für anfänger', vol: 0.08, intent: 0.8, cpc: 0.8 },
+  };
+
+  // ---------- Branchen ----------
+  const INDUSTRIES = [
+    {
+      id: 'fashion', name: 'E-Commerce: Sneaker & Streetwear', icon: '👟', goal: 'sales',
+      desc: 'Onlineshop mit starkem Q4, Shopping-Kampagnen und harter Preiskonkurrenz durch Marktplätze.',
+      aov: 92, aovSigma: 0.45, margin: 0.42, baseCvr: 0.026, bgDensity: 3.5, dispCvr: 1, returns: 0.28, baseCtr: 0.072, cpcScale: 1,
+      displayCpm: 2.8, cpv: 0.035, displayInventory: 600000, hours: 'consumer',
+      lag: [0.62, 0.17, 0.07, 0.05, 0.03, 0.02, 0.02, 0.02],
+      devices: { mobile: { share: 0.68, ctr: 1.05, cvr: 0.8 }, desktop: { share: 0.27, ctr: 0.9, cvr: 1.45 }, tablet: { share: 0.05, ctr: 0.95, cvr: 1.0 } },
+      dow: [1.0, 0.98, 0.97, 0.98, 0.96, 0.95, 1.1], season: [0.92, 0.85, 0.95, 1.0, 1.0, 0.92, 0.88, 0.9, 1.0, 1.08, 1.35, 1.45],
+      hasShopping: true, hasApp: true,
+      mods: ['base', 'kaufen', 'guenstig', 'online', 'sale', 'test', 'gebraucht', 'kostenlos', 'jobs'],
+      themes: [
+        { id: 'sneaker', name: 'Sneaker', kws: [['sneaker herren', 40500, 0.72], ['sneaker damen', 49500, 0.68], ['weiße sneaker', 18100, 0.62]],
+          products: [['Urban Low Sneaker Weiß', 89.95], ['Retro Runner Sneaker', 109.0], ['Canvas Classic Sneaker', 59.95], ['Chunky Sneaker Damen', 99.0]] },
+        { id: 'laufschuhe', name: 'Laufschuhe', season: [0.85, 0.95, 1.2, 1.3, 1.25, 1.1, 1.0, 0.95, 1.0, 0.9, 0.8, 0.75], kws: [['laufschuhe herren', 33100, 0.85], ['laufschuhe damen', 27100, 0.82], ['trailschuhe', 9900, 0.78]],
+          products: [['Pace Pro Laufschuh', 129.0], ['Trail Grip GTX', 149.0], ['Daily Run Laufschuh', 84.95]] },
+        { id: 'hoodies', name: 'Hoodies & Sweater', season: [1.1, 1.0, 0.9, 0.8, 0.65, 0.55, 0.5, 0.6, 0.95, 1.25, 1.4, 1.5], kws: [['hoodie herren', 22200, 0.52], ['oversize hoodie', 14800, 0.48], ['sweatshirt damen', 18100, 0.5]],
+          products: [['Essential Hoodie Schwarz', 49.95], ['Oversize Hoodie Sand', 59.95], ['Crewneck Sweater', 44.95]] },
+        { id: 'jacken', name: 'Jacken', season: [1.2, 0.9, 0.75, 0.7, 0.5, 0.35, 0.3, 0.4, 0.9, 1.6, 1.9, 1.7], kws: [['winterjacke herren', 60500, 0.95], ['regenjacke damen', 22200, 0.8], ['daunenjacke', 33100, 0.9]],
+          products: [['Puffer Jacket Black', 179.0], ['Rain Shell Damen', 119.0], ['Light Down Jacket', 139.0]] },
+        { id: 'caps', name: 'Caps & Mützen', season: [1.2, 0.9, 0.8, 0.95, 1.1, 1.2, 1.15, 1.05, 0.9, 1.0, 1.15, 1.3], kws: [['cap herren', 9900, 0.42], ['beanie', 18100, 0.36]],
+          products: [['Baseball Cap Logo', 24.95], ['Rib Beanie', 19.95]] },
+      ],
+      brand: { name: 'Kickhaus', vol: 1300 },
+      competitors: [
+        { name: 'SneakVault', domain: 'sneakvault.de', style: 'aggressive', budget: 520, qs: 7, aggr: 1.15, shopping: true },
+        { name: 'Laufwerk Store', domain: 'laufwerk-store.de', style: 'profit', budget: 260, qs: 8, aggr: 0.95, shopping: true, themes: ['laufschuhe', 'sneaker'] },
+        { name: 'UrbanKicks', domain: 'urbankicks.com', style: 'erratic', budget: 310, qs: 6, aggr: 1.0, shopping: true },
+        { name: 'Modehaus Brandt', domain: 'modehaus-brandt.de', style: 'brand', budget: 220, qs: 7, aggr: 0.85, themes: ['jacken', 'hoodies', 'caps'] },
+        { name: 'StreetHype', domain: 'streethype.de', style: 'budget', budget: 180, qs: 6, aggr: 1.05, shopping: true, themes: ['sneaker', 'hoodies', 'caps'] },
+        { name: 'Schuhpalast24', domain: 'schuhpalast24.de', style: 'profit', budget: 340, qs: 7, aggr: 0.9, shopping: true, themes: ['sneaker', 'laufschuhe'] },
+        { name: 'MegaMarkt Mode', domain: 'megamarkt.de', style: 'marketplace', budget: 1400, qs: 5, aggr: 0.95, shopping: true },
+      ],
+      entrants: ['Kicks & Co.', 'SoleMate Berlin', 'DropZone', 'Hype Republic', 'Sneakerdeal24'],
+      audiences: {
+        inmarket: [{ name: 'Kaufbereit: Schuhe', themes: ['sneaker', 'laufschuhe'], share: 0.14 }, { name: 'Kaufbereit: Bekleidung', themes: ['hoodies', 'jacken', 'caps'], share: 0.16 }, { name: 'Kaufbereit: Sportartikel', themes: ['laufschuhe'], share: 0.08 }],
+        affinity: [{ name: 'Modebewusste', share: 0.22 }, { name: 'Sportbegeisterte', share: 0.18 }],
+        life: [{ name: 'Kürzlich umgezogen', share: 0.03 }],
+      },
+      age: [1.15, 1.25, 1.05, 0.9, 0.7, 0.5, 0.9], gender: { m: 1.05, f: 0.97, u: 0.9 },
+      conv: [
+        { name: 'Kauf', category: 'Kauf', rate: 1, value: 'dynamic', primary: true },
+        { name: 'In den Einkaufswagen', category: 'In den Einkaufswagen', rate: 4.5, value: 0, primary: false },
+        { name: 'Newsletter-Anmeldung', category: 'Registrierung', rate: 0.8, value: 3, primary: false },
+      ],
+      lp: { speed: 58, relevance: 0.62 },
+    },
+    {
+      id: 'saas', name: 'B2B-SaaS: Projektmanagement-Software', icon: '💼', goal: 'leads',
+      desc: 'Hohe CPCs, lange Entscheidungszyklen, Leads mit Wert für Pipeline. Wochenenden sind schwach.',
+      aov: 125, aovSigma: 0.6, margin: 0.8, baseCvr: 0.045, bgDensity: 2.5, dispCvr: 0.6, baseCtr: 0.058, cpcScale: 1,
+      displayCpm: 6.5, cpv: 0.06, displayInventory: 250000, hours: 'b2b',
+      lag: [0.3, 0.14, 0.1, 0.08, 0.07, 0.06, 0.05, 0.05, 0.04, 0.03, 0.03, 0.02, 0.01, 0.01, 0.01],
+      devices: { mobile: { share: 0.32, ctr: 0.9, cvr: 0.55 }, desktop: { share: 0.63, ctr: 1.05, cvr: 1.2 }, tablet: { share: 0.05, ctr: 0.9, cvr: 0.8 } },
+      dow: [1.15, 1.18, 1.16, 1.12, 0.98, 0.42, 0.45], season: [1.08, 1.05, 1.05, 1.0, 0.98, 0.95, 0.82, 0.8, 1.05, 1.08, 1.05, 0.78],
+      hasShopping: false, hasApp: false,
+      mods: ['base', 'kostenlos', 'vergleich', 'test', 'preise', 'erfahrungen', 'online', 'wasist', 'jobs'],
+      modOverrides: { kostenlos: { intent: 0.65, vol: 0.12 }, vergleich: { intent: 1.2 }, preise: { intent: 1.3 } },
+      themes: [
+        { id: 'pm', name: 'Projektmanagement', kws: [['projektmanagement software', 8100, 7.4], ['projektmanagement tool', 6600, 6.8], ['kanban board', 4400, 3.2]] },
+        { id: 'zeit', name: 'Zeiterfassung', kws: [['zeiterfassung software', 9900, 6.1], ['arbeitszeiterfassung app', 5400, 4.9]] },
+        { id: 'crm', name: 'CRM', kws: [['crm software', 12100, 9.5], ['crm kleine unternehmen', 2400, 8.1]] },
+        { id: 'team', name: 'Teamkommunikation', kws: [['team chat software', 1600, 4.2], ['digitales whiteboard', 2900, 3.6]] },
+        { id: 'tasks', name: 'Aufgabenverwaltung', kws: [['aufgabenverwaltung', 2900, 3.9], ['to do liste team', 1900, 2.8]] },
+      ],
+      brand: { name: 'Planwerk', vol: 900 },
+      competitors: [
+        { name: 'TaskFlow', domain: 'taskflow.io', style: 'aggressive', budget: 640, qs: 8, aggr: 1.2 },
+        { name: 'Projektor Cloud', domain: 'projektor-cloud.de', style: 'profit', budget: 380, qs: 7, aggr: 1.0, themes: ['pm', 'tasks', 'team'] },
+        { name: 'Zeitwerk HR', domain: 'zeitwerk-hr.de', style: 'brand', budget: 240, qs: 8, aggr: 0.95, themes: ['zeit'] },
+        { name: 'SalesNest CRM', domain: 'salesnest.com', style: 'aggressive', budget: 720, qs: 7, aggr: 1.1, themes: ['crm'] },
+        { name: 'Boardly', domain: 'boardly.app', style: 'erratic', budget: 260, qs: 6, aggr: 1.0, themes: ['pm', 'team', 'tasks'] },
+        { name: 'OfficeSuite Enterprise', domain: 'officesuite-enterprise.com', style: 'marketplace', budget: 1600, qs: 6, aggr: 0.85 },
+      ],
+      entrants: ['FlowDesk', 'Teamwärts', 'KanbanKing', 'StackPilot', 'Agilo'],
+      audiences: {
+        inmarket: [{ name: 'Kaufbereit: Business-Software', themes: ['pm', 'crm', 'tasks', 'team'], share: 0.09 }, { name: 'Kaufbereit: HR-Software', themes: ['zeit'], share: 0.05 }],
+        affinity: [{ name: 'Unternehmer & Selbstständige', share: 0.12 }, { name: 'Technologie-Interessierte', share: 0.2 }],
+        life: [{ name: 'Unternehmensgründung', share: 0.02 }],
+      },
+      age: [0.5, 1.05, 1.25, 1.2, 1.0, 0.6, 0.9], gender: { m: 1.0, f: 1.0, u: 0.9 },
+      conv: [
+        { name: 'Testversion gestartet', category: 'Registrierung', rate: 1, value: 'dynamic', primary: true },
+        { name: 'Demo angefragt', category: 'Lead-Formular', rate: 0.25, value: 600, primary: true },
+        { name: 'Preisseite besucht', category: 'Seitenaufruf', rate: 3.5, value: 0, primary: false },
+      ],
+      lp: { speed: 64, relevance: 0.58 },
+    },
+    {
+      id: 'local', name: 'Lokaler Dienstleister: Schlüssel- & Sanitär-Notdienst', icon: '🔧', goal: 'leads',
+      desc: 'Sehr hohe CPCs, Anrufe als Conversion, regionale Wettbewerber und Wetterabhängigkeit.',
+      aov: 210, aovSigma: 0.5, margin: 0.55, baseCvr: 0.095, bgDensity: 3, dispCvr: 0.3, baseCtr: 0.085, cpcScale: 1,
+      displayCpm: 3.2, cpv: 0.04, displayInventory: 200000, hours: 'emergency',
+      lag: [0.92, 0.06, 0.02],
+      devices: { mobile: { share: 0.79, ctr: 1.05, cvr: 1.15 }, desktop: { share: 0.17, ctr: 0.85, cvr: 0.7 }, tablet: { share: 0.04, ctr: 0.9, cvr: 0.8 } },
+      dow: [1.02, 1.0, 1.0, 1.0, 1.02, 0.95, 0.9], season: [1.25, 1.18, 1.0, 0.92, 0.88, 0.85, 0.85, 0.86, 0.92, 1.0, 1.12, 1.2],
+      hasShopping: false, hasApp: false,
+      mods: ['base', 'naehe', 'notdienst', 'preise', 'kosten', 'guenstig', 'erfahrungen', 'jobs'],
+      themes: [
+        { id: 'schluessel', name: 'Schlüsseldienst', kws: [['schlüsseldienst', 90500, 9.2], ['tür öffnen', 12100, 6.8]] },
+        { id: 'rohr', name: 'Rohrreinigung', kws: [['rohrreinigung', 33100, 6.4], ['abfluss verstopft', 27100, 3.1]] },
+        { id: 'sanitaer', name: 'Sanitär', kws: [['klempner', 40500, 4.6], ['wasserrohrbruch', 9900, 5.2]] },
+        { id: 'heizung', name: 'Heizung', season: [1.7, 1.5, 1.1, 0.8, 0.5, 0.35, 0.3, 0.35, 0.7, 1.3, 1.7, 1.9], kws: [['heizung reparatur', 8100, 5.8], ['heizungsnotdienst', 4400, 7.1]] },
+      ],
+      brand: { name: 'Hansen Haustechnik', vol: 300 },
+      competitors: [
+        { name: 'Schlüssel-Blitz', domain: 'schluessel-blitz.de', style: 'aggressive', budget: 900, qs: 5, aggr: 1.3, themes: ['schluessel'] },
+        { name: 'RohrFix 24', domain: 'rohrfix24.de', style: 'aggressive', budget: 700, qs: 6, aggr: 1.15, themes: ['rohr', 'sanitaer'] },
+        { name: 'Meisterbetrieb Krüger', domain: 'krueger-haustechnik.de', style: 'profit', budget: 180, qs: 9, aggr: 0.9, themes: ['sanitaer', 'heizung'], geo: ['NW'] },
+        { name: 'Notdienst-Zentrale', domain: 'notdienst-zentrale.de', style: 'marketplace', budget: 1800, qs: 4, aggr: 1.05 },
+        { name: 'Wärme & Wasser GmbH', domain: 'waerme-wasser.de', style: 'brand', budget: 220, qs: 8, aggr: 0.85, themes: ['heizung', 'sanitaer'], geo: ['NW', 'NI', 'HE'] },
+        { name: 'City Aufsperrdienst', domain: 'city-aufsperrdienst.de', style: 'erratic', budget: 260, qs: 6, aggr: 1.0, themes: ['schluessel'], geo: ['BE', 'HH', 'HB', 'BY'] },
+      ],
+      entrants: ['Sofort-Service 365', 'Blitzklempner', 'Türauf Express', 'Rohrprofi Direkt'],
+      audiences: {
+        inmarket: [{ name: 'Kaufbereit: Handwerksdienstleistungen', themes: ['rohr', 'sanitaer', 'heizung'], share: 0.06 }, { name: 'Kaufbereit: Sicherheitstechnik', themes: ['schluessel'], share: 0.03 }],
+        affinity: [{ name: 'Hausbesitzer', share: 0.25 }, { name: 'Heimwerker', share: 0.14 }],
+        life: [{ name: 'Kürzlich umgezogen', share: 0.04 }],
+      },
+      age: [0.7, 0.95, 1.1, 1.1, 1.05, 1.0, 0.9], gender: { m: 1.0, f: 1.0, u: 0.95 },
+      conv: [
+        { name: 'Anruf über Anzeige', category: 'Anruf', rate: 0.75, value: 'dynamic', primary: true },
+        { name: 'Kontaktformular', category: 'Lead-Formular', rate: 0.35, value: 'dynamic', primary: true },
+        { name: 'Klick auf Route', category: 'Seitenaufruf', rate: 0.5, value: 0, primary: false },
+      ],
+      lp: { speed: 48, relevance: 0.55 },
+    },
+    {
+      id: 'travel', name: 'Reiseportal: Hotels & Ferienwohnungen', icon: '🏖️', goal: 'sales',
+      desc: 'Hohe Warenkörbe bei dünner Marge (Provision), lange Buchungsfenster, starke Saisonalität.',
+      aov: 680, aovSigma: 0.55, margin: 0.13, baseCvr: 0.016, bgDensity: 4, dispCvr: 0.8, baseCtr: 0.066, cpcScale: 1,
+      displayCpm: 3.6, cpv: 0.04, displayInventory: 500000, hours: 'travel',
+      lag: [0.35, 0.15, 0.1, 0.08, 0.07, 0.06, 0.05, 0.04, 0.03, 0.03, 0.02, 0.01, 0.01],
+      devices: { mobile: { share: 0.58, ctr: 1.0, cvr: 0.65 }, desktop: { share: 0.35, ctr: 1.0, cvr: 1.5 }, tablet: { share: 0.07, ctr: 1.0, cvr: 1.1 } },
+      dow: [1.08, 1.04, 1.02, 0.98, 0.9, 0.88, 1.1], season: [1.35, 1.2, 1.1, 1.05, 1.0, 1.05, 1.1, 0.95, 0.85, 0.85, 0.8, 0.75],
+      hasShopping: false, hasApp: true,
+      mods: ['base', 'guenstig', 'angebot', 'lastminute', 'buchen', 'bewertungen', 'jobs'],
+      themes: [
+        { id: 'ostsee', name: 'Ostsee', season: [0.7, 0.75, 0.95, 1.15, 1.3, 1.4, 1.45, 1.25, 0.95, 0.75, 0.6, 0.7], kws: [['hotel ostsee', 40500, 1.15], ['ferienwohnung ostsee', 74000, 0.95]] },
+        { id: 'mallorca', name: 'Mallorca', season: [1.25, 1.2, 1.25, 1.2, 1.15, 1.05, 1.0, 0.85, 0.75, 0.7, 0.6, 0.8], kws: [['mallorca hotel', 33100, 1.05], ['mallorca urlaub', 90500, 0.9]] },
+        { id: 'stadt', name: 'Städtereisen', kws: [['städtereise berlin', 9900, 0.85], ['hotel hamburg', 49500, 1.2], ['hotel münchen', 60500, 1.3]] },
+        { id: 'wellness', name: 'Wellness', season: [1.25, 1.2, 1.05, 0.95, 0.85, 0.75, 0.7, 0.75, 0.95, 1.15, 1.25, 1.3], kws: [['wellnesshotel', 60500, 1.4], ['wellness wochenende', 33100, 1.25]] },
+        { id: 'ski', name: 'Skiurlaub', season: [1.6, 1.3, 0.8, 0.35, 0.15, 0.1, 0.1, 0.15, 0.4, 0.9, 1.5, 1.8], kws: [['skiurlaub österreich', 22200, 1.1], ['skihotel', 8100, 1.25]] },
+      ],
+      brand: { name: 'Reisefuchs', vol: 1800 },
+      competitors: [
+        { name: 'Buchungsriese', domain: 'buchungsriese.com', style: 'marketplace', budget: 2600, qs: 8, aggr: 1.1 },
+        { name: 'Ferienhaus Paradies', domain: 'ferienhaus-paradies.de', style: 'profit', budget: 420, qs: 7, aggr: 0.95, themes: ['ostsee', 'mallorca'] },
+        { name: 'UrlaubsPiraten Deals', domain: 'urlaubsdeals-piraten.de', style: 'aggressive', budget: 520, qs: 6, aggr: 1.15 },
+        { name: 'AlpenResort Direkt', domain: 'alpenresort-direkt.at', style: 'brand', budget: 240, qs: 8, aggr: 0.9, themes: ['ski', 'wellness'], geo: ['DACH'] },
+        { name: 'CityTrip24', domain: 'citytrip24.de', style: 'budget', budget: 300, qs: 7, aggr: 1.0, themes: ['stadt'] },
+        { name: 'Hotelvergleich.net', domain: 'hotelvergleich.net', style: 'erratic', budget: 700, qs: 6, aggr: 1.05 },
+      ],
+      entrants: ['Trip Rakete', 'Meerblick Ferien', 'Wanderlust Travel', 'Kurztrip Profi'],
+      audiences: {
+        inmarket: [{ name: 'Kaufbereit: Hotels & Unterkünfte', themes: ['ostsee', 'mallorca', 'stadt', 'wellness', 'ski'], share: 0.12 }, { name: 'Kaufbereit: Pauschalreisen', themes: ['mallorca', 'ski'], share: 0.07 }],
+        affinity: [{ name: 'Reisebegeisterte', share: 0.24 }, { name: 'Wellness-Fans', share: 0.1 }],
+        life: [{ name: 'Bald verheiratet', share: 0.015 }],
+      },
+      age: [0.7, 0.95, 1.1, 1.15, 1.15, 1.05, 0.9], gender: { m: 0.95, f: 1.05, u: 0.9 },
+      conv: [
+        { name: 'Buchung', category: 'Kauf', rate: 1, value: 'dynamic', primary: true },
+        { name: 'Merkzettel', category: 'Sonstiges', rate: 3, value: 0, primary: false },
+      ],
+      lp: { speed: 52, relevance: 0.6 },
+    },
+    {
+      id: 'insurance', name: 'Versicherungsmakler online', icon: '🛡️', goal: 'leads',
+      desc: 'Extrem teure Klicks, Kfz-Wechselsaison im November, Vergleichsportale mit riesigen Budgets.',
+      aov: 165, aovSigma: 0.5, margin: 1.0, baseCvr: 0.07, bgDensity: 2.5, dispCvr: 0.5, baseCtr: 0.06, cpcScale: 1,
+      displayCpm: 5.5, cpv: 0.05, displayInventory: 350000, hours: 'consumer',
+      lag: [0.55, 0.15, 0.08, 0.06, 0.05, 0.04, 0.03, 0.02, 0.02],
+      devices: { mobile: { share: 0.55, ctr: 1.0, cvr: 0.7 }, desktop: { share: 0.4, ctr: 1.0, cvr: 1.45 }, tablet: { share: 0.05, ctr: 1.0, cvr: 1.0 } },
+      dow: [1.12, 1.08, 1.05, 1.02, 0.92, 0.78, 1.0], season: [1.2, 1.05, 1.0, 0.95, 0.92, 0.88, 0.85, 0.88, 0.95, 1.05, 1.25, 0.85],
+      hasShopping: false, hasApp: false,
+      mods: ['base', 'vergleich', 'rechner', 'guenstig', 'test', 'kuendigen', 'wasist', 'jobs'],
+      themes: [
+        { id: 'kfz', name: 'Kfz-Versicherung', season: [0.75, 0.7, 0.75, 0.8, 0.8, 0.75, 0.75, 0.8, 0.95, 1.6, 2.9, 0.9], kws: [['kfz versicherung', 165000, 11.5], ['autoversicherung wechseln', 18100, 9.8]] },
+        { id: 'haftpflicht', name: 'Haftpflicht', kws: [['privathaftpflicht', 33100, 6.9], ['haftpflichtversicherung', 49500, 7.4]] },
+        { id: 'zahn', name: 'Zahnzusatz', kws: [['zahnzusatzversicherung', 49500, 9.1]] },
+        { id: 'bu', name: 'Berufsunfähigkeit', kws: [['berufsunfähigkeitsversicherung', 33100, 17.5]] },
+        { id: 'rechtsschutz', name: 'Rechtsschutz', kws: [['rechtsschutzversicherung', 27100, 10.2]] },
+      ],
+      brand: { name: 'Schutzpilot', vol: 700 },
+      competitors: [
+        { name: 'VergleichsKönig', domain: 'vergleichskoenig.de', style: 'marketplace', budget: 4200, qs: 8, aggr: 1.1 },
+        { name: 'Policen-Check', domain: 'policen-check.de', style: 'aggressive', budget: 1600, qs: 7, aggr: 1.15 },
+        { name: 'Direktversicherer Nord', domain: 'direkt-nord.de', style: 'brand', budget: 900, qs: 8, aggr: 0.95, themes: ['kfz', 'haftpflicht'] },
+        { name: 'ZahnPlus Makler', domain: 'zahnplus-makler.de', style: 'profit', budget: 380, qs: 7, aggr: 1.0, themes: ['zahn'] },
+        { name: 'Vorsorge24', domain: 'vorsorge24.de', style: 'profit', budget: 650, qs: 7, aggr: 1.0, themes: ['bu', 'rechtsschutz', 'haftpflicht'] },
+        { name: 'Tarifhelden', domain: 'tarifhelden.de', style: 'erratic', budget: 700, qs: 6, aggr: 1.05 },
+      ],
+      entrants: ['InsurTech Neo', 'PolicyPal', 'Versichert & Gut', 'Tarifblitz'],
+      audiences: {
+        inmarket: [{ name: 'Kaufbereit: Kfz-Versicherung', themes: ['kfz'], share: 0.06 }, { name: 'Kaufbereit: Versicherungen', themes: ['haftpflicht', 'zahn', 'bu', 'rechtsschutz'], share: 0.08 }],
+        affinity: [{ name: 'Autoliebhaber', share: 0.15 }, { name: 'Finanzbewusste', share: 0.12 }],
+        life: [{ name: 'Berufsstart', share: 0.02 }, { name: 'Kürzlich umgezogen', share: 0.03 }],
+      },
+      age: [0.8, 1.2, 1.15, 1.05, 0.95, 0.75, 0.9], gender: { m: 1.02, f: 0.98, u: 0.9 },
+      conv: [
+        { name: 'Antrag gestellt', category: 'Lead-Formular', rate: 0.35, value: 'dynamic', primary: true },
+        { name: 'Tarifrechner abgeschlossen', category: 'Lead-Formular', rate: 1, value: 25, primary: false },
+      ],
+      lp: { speed: 61, relevance: 0.6 },
+    },
+    {
+      id: 'fitness', name: 'Online-Fitness & Ernährungscoaching (Abo)', icon: '💪', goal: 'sales',
+      desc: 'Abo-Modell mit Neujahrs-Peak, App-Kampagnen und viel informationalem Suchvolumen.',
+      aov: 79, aovSigma: 0.35, margin: 0.85, baseCvr: 0.026, bgDensity: 3, dispCvr: 1, baseCtr: 0.062, cpcScale: 1,
+      displayCpm: 2.4, cpv: 0.03, displayInventory: 700000, hours: 'consumer',
+      lag: [0.7, 0.12, 0.06, 0.04, 0.03, 0.03, 0.02],
+      devices: { mobile: { share: 0.74, ctr: 1.05, cvr: 0.95 }, desktop: { share: 0.21, ctr: 0.9, cvr: 1.2 }, tablet: { share: 0.05, ctr: 0.95, cvr: 1.0 } },
+      dow: [1.18, 1.05, 1.0, 0.95, 0.85, 0.82, 1.1], season: [1.65, 1.25, 1.1, 1.05, 1.1, 1.0, 0.8, 0.8, 0.95, 0.95, 0.9, 0.75],
+      hasShopping: false, hasApp: true,
+      mods: ['base', 'app', 'kostenlos', 'anfaenger', 'online', 'test', 'erfahrungen', 'kosten'],
+      modOverrides: { kostenlos: { intent: 0.3, vol: 0.12 } },
+      themes: [
+        { id: 'home', name: 'Home-Workout', kws: [['home workout', 18100, 0.95], ['fitness app', 33100, 1.4]] },
+        { id: 'abnehmen', name: 'Abnehmen', season: [2.0, 1.4, 1.2, 1.15, 1.25, 1.05, 0.75, 0.7, 0.85, 0.8, 0.75, 0.6], kws: [['abnehmen programm', 6600, 1.6], ['schnell abnehmen', 40500, 0.75]] },
+        { id: 'yoga', name: 'Yoga', kws: [['yoga online kurs', 9900, 1.2], ['yoga übungen', 22200, 0.55]] },
+        { id: 'muskel', name: 'Muskelaufbau', kws: [['trainingsplan muskelaufbau', 14800, 0.85]] },
+        { id: 'ernaehrung', name: 'Ernährung', kws: [['ernährungsplan', 27100, 1.05], ['ernährungsberatung online', 4400, 1.9]] },
+      ],
+      brand: { name: 'FitFabrik', vol: 1100 },
+      competitors: [
+        { name: 'MoveNow', domain: 'movenow.app', style: 'aggressive', budget: 480, qs: 8, aggr: 1.15 },
+        { name: 'YogaFlow Studio', domain: 'yogaflow-studio.de', style: 'profit', budget: 160, qs: 8, aggr: 0.95, themes: ['yoga'] },
+        { name: 'SlimCoach', domain: 'slimcoach.de', style: 'aggressive', budget: 380, qs: 6, aggr: 1.1, themes: ['abnehmen', 'ernaehrung'] },
+        { name: 'GymRat Plans', domain: 'gymratplans.com', style: 'budget', budget: 140, qs: 7, aggr: 1.0, themes: ['muskel', 'home'] },
+        { name: 'Gesundheitsportal Plus', domain: 'gesundheitsportal-plus.de', style: 'marketplace', budget: 900, qs: 6, aggr: 0.9 },
+        { name: 'Fit in 30', domain: 'fitin30.de', style: 'erratic', budget: 220, qs: 6, aggr: 1.0 },
+      ],
+      entrants: ['ShapeShift', 'Homegym Hero', 'NutriCoach AI', 'Pulse Club'],
+      audiences: {
+        inmarket: [{ name: 'Kaufbereit: Fitness-Abos', themes: ['home', 'muskel', 'yoga'], share: 0.07 }, { name: 'Kaufbereit: Diät & Ernährung', themes: ['abnehmen', 'ernaehrung'], share: 0.06 }],
+        affinity: [{ name: 'Gesundheits- & Fitnessbewusste', share: 0.25 }, { name: 'Yoga-Fans', share: 0.08 }],
+        life: [{ name: 'Neujahrsvorsätze', share: 0.05 }],
+      },
+      age: [1.0, 1.25, 1.15, 0.95, 0.75, 0.55, 0.9], gender: { m: 0.95, f: 1.05, u: 0.9 },
+      conv: [
+        { name: 'Abo-Abschluss', category: 'Kauf', rate: 1, value: 'dynamic', primary: true },
+        { name: 'Gratis-Woche gestartet', category: 'Registrierung', rate: 2.4, value: 8, primary: false },
+        { name: 'App-Installation', category: 'App-Installation', rate: 0.6, value: 4, primary: false },
+      ],
+      lp: { speed: 60, relevance: 0.6 },
+    },
+  ];
+
+  // ---------- Standorte (DACH) ----------
+  const LOCATIONS = [
+    { id: 'BW', name: 'Baden-Württemberg', country: 'DE', w: 0.133, cpc: 1.05, cvr: 1.04 },
+    { id: 'BY', name: 'Bayern', country: 'DE', w: 0.158, cpc: 1.08, cvr: 1.05 },
+    { id: 'BE', name: 'Berlin', country: 'DE', w: 0.045, cpc: 1.15, cvr: 0.95 },
+    { id: 'BB', name: 'Brandenburg', country: 'DE', w: 0.03, cpc: 0.9, cvr: 0.95 },
+    { id: 'HB', name: 'Bremen', country: 'DE', w: 0.008, cpc: 1.0, cvr: 0.95 },
+    { id: 'HH', name: 'Hamburg', country: 'DE', w: 0.022, cpc: 1.18, cvr: 1.02 },
+    { id: 'HE', name: 'Hessen', country: 'DE', w: 0.076, cpc: 1.1, cvr: 1.02 },
+    { id: 'MV', name: 'Mecklenburg-Vorpommern', country: 'DE', w: 0.019, cpc: 0.85, cvr: 0.92 },
+    { id: 'NI', name: 'Niedersachsen', country: 'DE', w: 0.096, cpc: 0.95, cvr: 1.0 },
+    { id: 'NW', name: 'Nordrhein-Westfalen', country: 'DE', w: 0.216, cpc: 1.02, cvr: 1.0 },
+    { id: 'RP', name: 'Rheinland-Pfalz', country: 'DE', w: 0.049, cpc: 0.95, cvr: 1.0 },
+    { id: 'SL', name: 'Saarland', country: 'DE', w: 0.012, cpc: 0.9, cvr: 0.97 },
+    { id: 'SN', name: 'Sachsen', country: 'DE', w: 0.048, cpc: 0.9, cvr: 0.95 },
+    { id: 'ST', name: 'Sachsen-Anhalt', country: 'DE', w: 0.026, cpc: 0.85, cvr: 0.92 },
+    { id: 'SH', name: 'Schleswig-Holstein', country: 'DE', w: 0.035, cpc: 0.97, cvr: 1.0 },
+    { id: 'TH', name: 'Thüringen', country: 'DE', w: 0.025, cpc: 0.85, cvr: 0.93 },
+    { id: 'AT', name: 'Österreich', country: 'AT', w: 0.11, cpc: 1.0, cvr: 0.95 },
+    { id: 'CH', name: 'Schweiz', country: 'CH', w: 0.1, cpc: 1.55, cvr: 0.85 },
+  ];
+  const LOC_BY_ID = Object.fromEntries(LOCATIONS.map((l) => [l.id, l]));
+  const DE_IDS = LOCATIONS.filter((l) => l.country === 'DE').map((l) => l.id);
+
+  const AGES = ['18–24', '25–34', '35–44', '45–54', '55–64', '65+', 'Unbekannt'];
+  const AGE_SHARE = [0.11, 0.2, 0.18, 0.17, 0.15, 0.1, 0.09];
+  const GENDERS = [{ id: 'm', name: 'Männlich', share: 0.47 }, { id: 'f', name: 'Weiblich', share: 0.45 }, { id: 'u', name: 'Unbekannt', share: 0.08 }];
+
+  const DEVICES = [{ id: 'mobile', name: 'Mobilgeräte' }, { id: 'desktop', name: 'Computer' }, { id: 'tablet', name: 'Tablets' }];
+
+  // ---------- Kampagnentypen & Gebotsstrategien ----------
+  const CAMPAIGN_TYPES = {
+    search: { name: 'Suche', icon: '🔍', desc: 'Textanzeigen in den Google-Suchergebnissen, gesteuert über Keywords.' },
+    shopping: { name: 'Shopping', icon: '🛒', desc: 'Produktanzeigen mit Bild & Preis auf Basis Ihres Merchant-Center-Feeds.' },
+    pmax: { name: 'Performance Max', icon: '⚡', desc: 'KI-gesteuert über alle Google-Kanäle: Suche, Shopping, Display, YouTube, Discover, Gmail, Maps.' },
+    display: { name: 'Display', icon: '🖼️', desc: 'Bildanzeigen auf über 2 Mio. Websites & Apps im Google Displaynetzwerk.' },
+    video: { name: 'Video (YouTube)', icon: '▶️', desc: 'Videoanzeigen auf YouTube: In-Stream, In-Feed und Shorts.' },
+    demandgen: { name: 'Demand Gen', icon: '✨', desc: 'Visuelle Anzeigen in YouTube, Discover und Gmail zur Nachfragegenerierung.' },
+    app: { name: 'App', icon: '📱', desc: 'App-Installationen über Suche, Play Store, YouTube und Display.' },
+  };
+  const BID_STRATEGIES = {
+    manual: { name: 'Manueller CPC', smart: false, types: ['search', 'shopping', 'display'] },
+    maxclicks: { name: 'Klicks maximieren', smart: false, types: ['search', 'shopping', 'display'] },
+    maxconv: { name: 'Conversions maximieren', smart: true, types: ['search', 'display', 'pmax', 'demandgen', 'video'] },
+    tcpa: { name: 'Ziel-CPA', smart: true, types: ['search', 'display', 'demandgen', 'video', 'app'] },
+    maxvalue: { name: 'Conversion-Wert maximieren', smart: true, types: ['search', 'shopping', 'pmax', 'display', 'demandgen'] },
+    troas: { name: 'Ziel-ROAS', smart: true, types: ['search', 'shopping', 'display', 'demandgen'] },
+    tis: { name: 'Angestrebter Anteil an möglichen Impressionen', smart: false, types: ['search'] },
+    cpm: { name: 'Sichtbarer CPM (vCPM)', smart: false, types: ['display', 'video'] },
+    cpv: { name: 'CPV (Kosten pro Aufruf)', smart: false, types: ['video'] },
+    tcpi: { name: 'Ziel-Kosten pro Installation', smart: true, types: ['app'] },
+  };
+
+  const ASSET_TYPES = {
+    sitelink: { name: 'Sitelinks', ctr: 0.1, rank: 0.04, min: 2 },
+    callout: { name: 'Zusatzinformationen', ctr: 0.04, rank: 0.02, min: 2 },
+    snippet: { name: 'Snippets', ctr: 0.03, rank: 0.01, min: 1 },
+    call: { name: 'Anrufe', ctr: 0.05, rank: 0.02, min: 1 },
+    image: { name: 'Bilder', ctr: 0.08, rank: 0.02, min: 1 },
+    price: { name: 'Preise', ctr: 0.04, rank: 0.01, min: 1 },
+    promotion: { name: 'Angebote', ctr: 0.05, rank: 0.01, min: 1 },
+    leadform: { name: 'Lead-Formulare', ctr: 0.02, rank: 0.01, min: 1 },
+    location: { name: 'Standorte', ctr: 0.05, rank: 0.02, min: 1 },
+    businessname: { name: 'Unternehmensname & Logo', ctr: 0.03, rank: 0.01, min: 1 },
+  };
+
+  // ---------- Kalenderereignisse ----------
+  const CAL_EVENTS = [
+    { id: 'neujahr', name: 'Neujahrsvorsätze & Januarloch', range: (y) => [new Date(Date.UTC(y, 0, 1)), new Date(Date.UTC(y, 0, 24))],
+      fx: { fashion: { demand: 0.85, cvr: 0.9 }, fitness: { demand: 1.55, cvr: 1.2, cpc: 1.25, compAggr: 1.2 }, travel: { demand: 1.25, cvr: 1.1 }, saas: { demand: 1.08 } } },
+    { id: 'valentin', name: 'Valentinstag', range: (y) => [new Date(Date.UTC(y, 1, 6)), new Date(Date.UTC(y, 1, 14))],
+      fx: { fashion: { demand: 1.08 }, travel: { themeDemand: { wellness: 1.5 } } } },
+    { id: 'ostern', name: 'Ostern', range: (y) => [U.addDays(U.easter(y), -9), U.addDays(U.easter(y), 1)],
+      fx: { fashion: { demand: 1.1, cvr: 1.05 }, travel: { demand: 1.15 }, saas: { demand: 0.85 }, fitness: { demand: 0.92 } } },
+    { id: 'muttertag', name: 'Muttertag', range: (y) => [U.addDays(U.nthWeekday(y, 4, 0, 2), -8), U.nthWeekday(y, 4, 0, 2)],
+      fx: { fashion: { demand: 1.06 }, travel: { themeDemand: { wellness: 1.3 } } } },
+    { id: 'primeday', name: 'Prime-Day-Aktionstage (Marktplätze)', range: (y) => { const d = U.nthWeekday(y, 6, 2, 2); return [d, U.addDays(d, 1)]; },
+      fx: { fashion: { demand: 1.15, cvr: 0.82, cpc: 1.2, compAggr: 1.3 }, fitness: { cvr: 0.9 } } },
+    { id: 'sommerferien', name: 'Sommerferien', range: (y) => [new Date(Date.UTC(y, 6, 1)), new Date(Date.UTC(y, 7, 31))],
+      fx: { saas: { demand: 0.85, cvr: 0.9 }, travel: { themeDemand: { ostsee: 1.2, mallorca: 1.15 } }, fitness: { demand: 0.88 }, insurance: { demand: 0.92 } } },
+    { id: 'schulstart', name: 'Back to School', range: (y) => [new Date(Date.UTC(y, 7, 20)), new Date(Date.UTC(y, 8, 15))],
+      fx: { fashion: { demand: 1.08, cvr: 1.04 } } },
+    { id: 'heizperiode', name: 'Beginn der Heizperiode', range: (y) => [new Date(Date.UTC(y, 9, 1)), new Date(Date.UTC(y, 9, 31))],
+      fx: { local: { themeDemand: { heizung: 1.6 } } } },
+    { id: 'kfzwechsel', name: 'Kfz-Wechselsaison (Stichtag 30.11.)', range: (y) => [new Date(Date.UTC(y, 9, 25)), new Date(Date.UTC(y, 10, 30))],
+      fx: { insurance: { themeDemand: { kfz: 1.25 }, cpc: 1.3, compAggr: 1.35, cvr: 1.1 } } },
+    { id: 'singlesday', name: 'Singles Day', range: (y) => [new Date(Date.UTC(y, 10, 10)), new Date(Date.UTC(y, 10, 11))],
+      fx: { fashion: { demand: 1.12, cvr: 1.08 } } },
+    { id: 'blackweek', name: 'Black Week & Cyber Monday', range: (y) => [U.addDays(U.blackFriday(y), -7), U.addDays(U.blackFriday(y), 3)],
+      fx: { fashion: { demand: 1.75, cvr: 1.45, cpc: 1.55, compAggr: 1.45, aov: 0.85 }, saas: { demand: 1.1, cvr: 1.15 }, travel: { demand: 1.25, cvr: 1.25, cpc: 1.2 }, fitness: { demand: 1.35, cvr: 1.35, cpc: 1.3, compAggr: 1.3 }, insurance: { cpc: 1.1 } } },
+    { id: 'xmas', name: 'Weihnachtsgeschäft', range: (y) => [new Date(Date.UTC(y, 11, 1)), new Date(Date.UTC(y, 11, 19))],
+      fx: { fashion: { demand: 1.3, cvr: 1.18, cpc: 1.25, compAggr: 1.2 }, fitness: { demand: 0.9 }, saas: { demand: 0.92 } } },
+    { id: 'zwischenjahre', name: 'Weihnachten & zwischen den Jahren', range: (y) => [new Date(Date.UTC(y, 11, 20)), new Date(Date.UTC(y, 11, 31))],
+      fx: { fashion: { demand: 0.8, cvr: 0.72 }, saas: { demand: 0.4, cvr: 0.6 }, travel: { demand: 1.15 }, local: { demand: 1.15 }, insurance: { demand: 0.8 }, fitness: { demand: 1.2 } } },
+    { id: 'quartalsende', name: 'Quartalsende: Budget-Ausschöpfung der Mitbewerber', range: (y, d) => { const m = d.getUTCMonth(); const qEnd = new Date(Date.UTC(y, m - (m % 3) + 3, 0)); return [U.addDays(qEnd, -6), qEnd]; },
+      fx: { _all: { compAggr: 1.12, cpc: 1.05 } } },
+  ];
+
+  // ---------- Zufallsereignisse ----------
+  // p = Wahrscheinlichkeit pro Tag (Basis), dur = Dauer [min,max] in Tagen
+  const RANDOM_EVENTS = [
+    { id: 'comp_sale', p: 0.012, dur: [5, 14], sev: 'warn', name: 'Rabattaktion bei {comp}', desc: '{comp} wirbt mit bis zu 30 % Rabatt und erhöht die Gebote deutlich. Preisvergleichende Nutzer springen ab.' },
+    { id: 'comp_enter', p: 0.004, dur: [1, 1], sev: 'warn', name: 'Neuer Wettbewerber: {comp}', desc: 'Ein VC-finanziertes Start-up drängt mit großem Budget und aggressiven Geboten in den Markt.' },
+    { id: 'comp_pause', p: 0.004, dur: [7, 30], sev: 'info', name: '{comp} pausiert Google Ads', desc: 'Branchengerüchten zufolge hat {comp} sein Werbebudget eingefroren. Die Auktionen werden günstiger.' },
+    { id: 'bid_war', p: 0.006, dur: [7, 21], sev: 'warn', name: 'Bieterkrieg um „{theme}“', desc: 'Mehrere Mitbewerber überbieten sich gegenseitig im Bereich {theme}. Die CPCs steigen spürbar.' },
+    { id: 'core_update', p: 0.003, dur: [10, 16], sev: 'info', name: 'Google Core Update wird ausgerollt', desc: 'Organische Rankings schwanken stark. Mehr Nutzer klicken auf Anzeigen; einige Mitbewerber verlieren Landingpage-Qualität.' },
+    { id: 'recession', p: 0.0015, dur: [30, 90], sev: 'warn', name: 'Konjunkturdelle: Verbraucherstimmung sinkt', desc: 'Der Konsumklimaindex fällt. Nutzer vergleichen länger, Conversion-Raten und Warenkörbe sinken.' },
+    { id: 'boom', p: 0.0015, dur: [30, 60], sev: 'info', name: 'Konsumlaune steigt', desc: 'Gute Wirtschaftsdaten heben die Kauflaune – höhere Nachfrage und bessere Conversion-Raten.' },
+    { id: 'viral', p: 0.004, dur: [3, 10], sev: 'info', name: 'Viraler Trend: „{theme}“', desc: 'Ein virales Video lässt die Suchanfragen zu {theme} explodieren. Viele Neugierige, etwas geringere Kaufabsicht.' },
+    { id: 'media_negative', p: 0.002, dur: [7, 20], sev: 'warn', name: 'Negative Presse über die Branche', desc: 'Ein TV-Bericht über unseriöse Anbieter verunsichert Kunden. Nachfrage und Vertrauen sinken.' },
+    { id: 'supply', p: 0.004, dur: [7, 21], sev: 'warn', name: 'Lieferengpass: {theme}', desc: 'Ihr Lieferant kann {theme} nicht liefern. Viele Produkte sind nicht vorrätig, die Conversion-Rate in diesem Bereich bricht ein.', industries: ['fashion'] },
+    { id: 'capacity', p: 0.004, dur: [5, 14], sev: 'warn', name: 'Personalengpass: Aufträge nicht annehmbar', desc: 'Krankheitswelle im Team: Ein Teil der Anfragen kann nicht bedient werden – Leads verfallen.', industries: ['local'] },
+    { id: 'lp_down', p: 0.003, dur: [1, 3], sev: 'crit', name: 'Website nicht erreichbar (Serverausfall)', desc: 'Ihre Landingpages liefern Fehler 503. Klicks werden weiter bezahlt, konvertieren aber nicht. Anzeigen werden ggf. wegen „Ziel nicht erreichbar“ abgelehnt.', fixable: { label: 'Notfall-Hosting-Support beauftragen', cost: 450 } },
+    { id: 'tracking', p: 0.003, dur: [999, 999], sev: 'crit', name: 'Conversion-Tracking ausgefallen', desc: 'Nach einem Website-Update fehlt das Google-Tag auf der Bestätigungsseite. Es werden keine Conversions mehr erfasst – Smart Bidding verliert sein Signal.', fixable: { label: 'Google-Tag reparieren', cost: 150 } },
+    { id: 'click_fraud', p: 0.004, dur: [3, 10], sev: 'warn', name: 'Erhöhter Anteil ungültiger Klicks', desc: 'Bot-Traffic aus einem Botnetz trifft Ihre Branche. Google filtert einen Großteil, die Daten werden aber verrauscht.' },
+    { id: 'heat', p: 0.012, dur: [4, 10], sev: 'info', name: 'Hitzewelle', desc: 'Temperaturen über 33 °C: Menschen sind draußen statt online; saisonale Sortimente verschieben sich.', months: [5, 6, 7] },
+    { id: 'cold', p: 0.012, dur: [4, 10], sev: 'info', name: 'Kälteeinbruch', desc: 'Frost und Schnee: Winterbedarf steigt, Notdienste sind gefragt.', months: [10, 11, 0, 1] },
+    { id: 'consent', p: 0.0012, dur: [1, 1], sev: 'warn', name: 'Browser-Update senkt Cookie-Zustimmung', desc: 'Ein großer Browser verschärft den Tracking-Schutz. Ohne Consent Mode (erweitert) fehlen dauerhaft mehr Conversions in Ihren Berichten.' },
+    { id: 'price_hike', p: 0.007, dur: [14, 40], sev: 'info', name: '{comp} erhöht die Preise', desc: '{comp} hebt die Preise an und senkt die Gebote. Ihre Angebote wirken im Vergleich attraktiver.' },
+    { id: 'influencer', p: 0.002, dur: [3, 8], sev: 'info', name: 'Influencer erwähnt Ihre Marke', desc: 'Ein reichweitenstarker Creator empfiehlt Sie. Die Suchanfragen nach Ihrer Marke steigen stark.' },
+    { id: 'ai_overview', p: 0.0012, dur: [1, 1], sev: 'info', name: 'KI-Übersichten in der Suche ausgeweitet', desc: 'Google zeigt bei informationalen Suchen häufiger KI-Antworten. Klickraten auf Informationssuchen sinken dauerhaft.' },
+    { id: 'policy_update', p: 0.002, dur: [1, 1], sev: 'warn', name: 'Google-Ads-Richtlinien aktualisiert', desc: 'Neue Richtlinien zu Superlativen und Versprechen: Bestehende Anzeigen werden erneut geprüft.' },
+    { id: 'reporting_delay', p: 0.002, dur: [1, 2], sev: 'info', name: 'Störung: Google-Ads-Berichte verzögert', desc: 'Ein technisches Problem bei Google verzögert die Conversion-Daten um einige Tage.' },
+  ];
+
+  const NEWS_FLAVOR = [
+    'Branchenverband meldet stabile Online-Umsätze im Vormonat.',
+    'Analysten: Anteil mobiler Suchanfragen wächst weiter.',
+    'Google testet neue Anzeigenformate in der Suche.',
+    'Studie: Nutzer vertrauen Anzeigen mit Bewertungen stärker.',
+    'Datenschutzbehörden prüfen Tracking-Praktiken großer Shops.',
+    'Marketing-Umfrage: Mehr Budget fließt in Performance Max.',
+    'Die durchschnittlichen CPCs in Europa sind laut Report im Jahresvergleich gestiegen.',
+    'Google erinnert an die Umstellung auf Consent Mode v2.',
+  ];
+
+  G.D = {
+    HOURS, HOUR_CVR, MODS, INDUSTRIES, IND_BY_ID: Object.fromEntries(INDUSTRIES.map((i) => [i.id, i])),
+    LOCATIONS, LOC_BY_ID, DE_IDS, AGES, AGE_SHARE, GENDERS, DEVICES, CAMPAIGN_TYPES, BID_STRATEGIES, ASSET_TYPES,
+    CAL_EVENTS, RANDOM_EVENTS, NEWS_FLAVOR,
+  };
+})();
