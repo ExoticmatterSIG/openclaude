@@ -27,6 +27,9 @@
   const DEFAULT = ['kpi', 'guide', 'camps', 'goals', 'pacing', 'score', 'month', 'news', 'market', 'pnl'].map((id) => ({ id, size: BY[id].size }));
   const layout = () => { const l = UI.prefs().ovLayout; return Array.isArray(l) && l.length ? l.filter((x) => BY[x.id]) : DEFAULT.map((x) => ({ ...x })); };
   const save = (l) => UI.setPref('ovLayout', l);
+  UI.OV_NAME = (id) => (BY[id] ? BY[id].name : id);
+  // Karte sicherstellen (für „Zeig mir wo"); true, wenn sie neu hinzugefügt wurde
+  UI.ovEnsure = function (id) { if (!BY[id]) return false; const L = layout(); if (L.some((x) => x.id === id)) return false; const at = Math.max(L.findIndex((x) => x.id === 'guide'), L.findIndex((x) => x.id === 'kpi')) + 1; L.splice(at, 0, { id, size: BY[id].size }); save(L); return true; };
 
   // Persistente KPI-Auswahl (unabhängig vom Spielstand)
   const P0 = UI.prefs();
@@ -121,7 +124,7 @@
       if (!html && !edit) return '';
       if (!html) html = UI.card(BY[it.id].name, '<div class="muted small">Derzeit keine Daten.</div>');
       const bar = edit ? `<div class="ovbar"><span class="ovgrip" title="Ziehen zum Verschieben">⠿</span><b>${esc(BY[it.id].name)}</b><span class="ovtools"><button class="iconbtn" data-act="ovmove" data-i="${i}" data-d="-1" title="Nach vorne" ${i === 0 ? 'disabled' : ''}>↑</button><button class="iconbtn" data-act="ovmove" data-i="${i}" data-d="1" title="Nach hinten" ${i === L.length - 1 ? 'disabled' : ''}>↓</button><button class="iconbtn" data-act="ovsize" data-i="${i}" title="Breite umschalten">${it.size === 'full' ? '◧ halbe Breite' : '▭ volle Breite'}</button><button class="iconbtn" data-act="ovhide" data-i="${i}" title="Ausblenden">✕</button></span></div>` : '';
-      return `<div class="ovw ${it.size === 'full' ? 'full' : 'half'} ${edit ? 'editing' : ''}" data-ovi="${i}" ${edit ? 'draggable="true"' : ''}>${bar}${html}</div>`;
+      return `<div class="ovw ${it.size === 'full' ? 'full' : 'half'} ${edit ? 'editing' : ''}" data-ovi="${i}" data-ovid="${it.id}" ${edit ? 'draggable="true"' : ''}>${bar}${html}</div>`;
     }).join('');
     const hidden = CAT.filter((c) => !L.some((x) => x.id === c.id));
     const editBar = edit ? `<div class="callout ovhint"><b>Übersicht anpassen:</b> Karten per ⠿ ziehen oder mit ↑ ↓ verschieben, Breite umschalten oder mit ✕ ausblenden. Die Anordnung gilt für alle Spielstände in diesem Browser.<div class="tipjump"><button class="btn sm primary" data-act="ovadd">＋ Karte hinzufügen${hidden.length ? ` (${hidden.length})` : ''}</button><button class="btn sm" data-act="ovreset">Standard wiederherstellen</button><button class="btn sm" data-act="ovedit">✓ Fertig</button></div></div>` : '';

@@ -114,6 +114,9 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
   Schnellaktionen (Kampagnen pausieren/reaktivieren, Budgets temporär senken/wiederherstellen, Thema pausieren, Brand Safety
   aktivieren, Budgets an Monatsvorgabe anpassen). Hält die Simulation wegen eines Ereignisses an, öffnet sich der
   Notfall-Assistent automatisch; Chancen (z. B. Mitbewerber pausiert) werden ebenfalls erklärt (`js/emergency.js`).
+- **⌖ „Zeig mir wo":** Bezüge in Hilfetexten, Notfall-Leitfäden, Tipps und Erklärungen (z. B. Karte „Messqualität",
+  „Tag testen", Consent Mode, Tools → Conversions, „▦ Spalten", Reiter „Raster bearbeiten") sind klickbar: Der Simulator
+  springt dorthin, blendet fehlende Übersichtskarten ein und hebt die Stelle kurz hervor (`js/showme.js`).
 - **🧭 Geführte Hilfe für Zielwerte:** Im Gebotsstrategie-Formular Szenarien für Ziel-ROAS/Ziel-CPA mit Kosten, Conversions,
   Umsatz, echtem Deckungsbeitrag, Monatsbudget-Auswirkung und Prüfung gegen Budget, ROAS-Ziel und Break-even – inkl.
   Empfehlung und „Übernehmen".
@@ -175,6 +178,7 @@ js/goals.js, psych.js, glossary.js, tips.js   Geschäftsleitung, Kaufverhalten, 
 js/glossary-detail.js, guide.js   Ausführliche Erklärungen, Ziel-ROAS-Rechner, geführte Problemhilfe
 js/overview.js   Übersicht als Baukasten (Karten, Layout, zusätzliche Karten)
 js/emergency.js  Notfall-Assistent: Leitfäden und Schnellaktionen für Ereignisse
+js/showme.js     „Zeig mir wo": klickbare Bezüge mit Hervorhebung
 js/academy-content.js, academy.js   Akademie: Kursinhalte und Lern-UI mit Sandbox
 js/ui.js, views-*.js, forms.js, charts.js, app.js   Oberfläche
 test/smoke.mjs   Engine-Test ohne Browser: node test/smoke.mjs

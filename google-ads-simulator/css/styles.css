@@ -474,3 +474,10 @@ th.has-tip.sortable { cursor: pointer; }
 .ovopt:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
 .gd-item.emg.bad { background: color-mix(in srgb, var(--bad-soft) 55%, transparent); }
 .gd-item.chance > summary { color: var(--good); }
+/* „Zeig mir wo" */
+.gdlink { color: var(--primary-text); text-decoration: underline dotted; text-underline-offset: 2px; cursor: pointer; }
+.gdlink::after { content: " ⌖"; font-size: .85em; opacity: .7; }
+.gdlink:hover { text-decoration-style: solid; }
+.gd-spot { position: relative; z-index: 4; outline: 3px solid var(--s3) !important; outline-offset: 3px; border-radius: 8px; animation: gdpulse 1s ease-in-out 3; }
+@keyframes gdpulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--s3) 0%, transparent); } 50% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--s3) 35%, transparent); } }
+.gd-spotlabel { position: fixed; z-index: 96; background: var(--s3); color: #202124; font-weight: 600; font-size: 13px; padding: 5px 10px; border-radius: 14px; box-shadow: var(--shadow-lg); pointer-events: none; white-space: nowrap; }
