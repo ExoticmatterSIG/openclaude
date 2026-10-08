@@ -414,3 +414,41 @@ th.has-tip.sortable { cursor: pointer; }
 .acad-opt .acad-ex { display: block; margin-top: 6px; font-size: 13px; color: var(--text-2); line-height: 1.5; }
 .acad-opt.chosen { box-shadow: 0 0 0 2px var(--primary) inset; }
 .acad-opt[disabled] { cursor: default; }
+.cdelta { font-size: 10px; line-height: 1.1; }
+.kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.kpi .kpix { margin-left: auto; border: 0; background: transparent; color: var(--text-3); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; visibility: hidden; }
+.kpi:hover .kpix { visibility: visible; }
+@media (hover: none) { .kpi .kpix { visibility: visible; } }
+.kpiadd { display: flex; align-items: center; justify-content: center; color: var(--primary-text); font-weight: 500; border-left: 1px dashed var(--border); min-height: 80px; }
+.kpiadd:hover { background: var(--primary-soft); }
+.delta.tiny { display: block; font-size: 10px; }
+/* Werbezeitplaner-Raster */
+.sgrid { user-select: none; -webkit-user-select: none; touch-action: none; }
+.sgrid .c.sc { position: relative; height: 28px; cursor: crosshair; font-size: 9px; color: var(--text-2); overflow: hidden; border: 1px solid transparent; }
+.sgrid .c.sc.off { color: var(--text-3); }
+.sgrid .c.sc.sel { border-color: var(--primary); box-shadow: inset 0 0 0 2px var(--primary); }
+.sgrid .c.sc span { position: relative; }
+.sgrid .c.sc .pf { position: absolute; left: 2px; right: 2px; bottom: 0; background: var(--primary); opacity: .55; border-radius: 2px 2px 0 0; }
+.sgrid .h, .sgrid .r, .sgrid .corner { cursor: pointer; }
+.sgrid .h:hover, .sgrid .r:hover, .sgrid .corner:hover { color: var(--primary-text); }
+.sgrid .corner { color: var(--text-3); text-align: center; }
+.schedbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; margin-bottom: 10px; background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 6px; }
+.schedbar #schedcnt { margin-right: 8px; }
+.adjgrp { display: inline-flex; align-items: center; gap: 4px; }
+.adjgrp input { width: 76px; }
+.adjin { width: 70px; }
+.schedrow { display: grid; grid-template-columns: minmax(130px, 1.4fr) minmax(80px, 1fr) auto minmax(80px, 1fr) minmax(110px, 1fr) 36px; gap: 8px; align-items: center; margin-bottom: 6px; }
+.schedrow.head { font-size: 12px; color: var(--text-2); }
+@media (max-width: 600px) { .schedrow { grid-template-columns: 1fr 1fr; } .schedrow > span:nth-child(3) { display: none; } .schedrow.head { display: none; } }
+.tipjump { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tiphow { margin-top: 10px; padding: 10px 12px; background: var(--surface-2); border-radius: 6px; border: 1px solid var(--border-soft); }
+.tiphow ol { margin: 4px 0 0; padding-left: 20px; }
+.tipwhen { margin: 4px 0; }
+.tipwhen summary { cursor: pointer; color: var(--primary-text); }
+@media (max-width: 700px) {
+  .sgrid { min-width: 0; grid-template-columns: 24px repeat(24, minmax(0, 1fr)); gap: 1px; }
+  .sgrid .c.sc { height: 26px; border-radius: 2px; }
+  .sgrid .c.sc span { display: none; }
+  .sgrid .h { font-size: 8px; }
+  .sgrid .h:nth-child(odd) { visibility: hidden; }
+}

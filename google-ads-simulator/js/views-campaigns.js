@@ -15,11 +15,12 @@
     const vecs = [];
     for (let d = a; d <= b; d++) {
       const v = E.zero();
+      if (d < 0) { vecs.push(UI.ext(E.derive(v))); continue; }
       for (const [dim, id] of ids) { const s = S.stats[dim] && S.stats[dim][id] && S.stats[dim][id][d]; if (s) E.add(v, s); }
       vecs.push(UI.ext(E.derive(v)));
     }
     const labels = [], tips = [];
-    for (let d = a; d <= b; d++) { const dt = U.dayToDate(S.startDate, d); labels.push(U.fmtShort(dt)); tips.push(U.fmtDate(dt)); }
+    for (let d = a; d <= b; d++) { const dt = U.dayToDate(S.startDate, Math.max(0, d)); labels.push(U.fmtShort(dt)); tips.push(U.fmtDate(dt)); }
     return { labels, tips, series: keys.map((k) => vecs.map((v) => v[k])) };
   };
   UI.eventMarks = function (range) {
@@ -32,22 +33,28 @@
     render() {
       const S = APP.S;
       const dim = APP.scope.cid ? 'camp' : 'acct', id = APP.scope.cid || 'all';
-      const cur = UI.m(dim, id), prev = UI.m(dim, id, UI.prevRng());
+      const cur = UI.m(dim, id), cr = UI.cmpRng();
+      const prev = cr && cr[1] >= 0 ? UI.ext(E.derive(E.sumRange(S, dim, id, Math.max(0, cr[0]), cr[1]))) : null;
       let range = UI.rng();
       if (range[1] - range[0] < 6) range = [Math.max(0, S.day - 14), S.day - 1];
+      const kopt = (k) => UI.MET_GROUPS.map(([g, keys]) => `<optgroup label="${g}">${keys.map((c) => `<option value="${c}" ${c === k ? 'selected' : ''}>${UI.MET[c].l}</option>`).join('')}</optgroup>`).join('');
       const tiles = APP.kpis.map((k, i) => {
         const sel = APP.chart.indexOf(k);
         return `<div class="kpi ${sel === 0 ? 'sel1' : sel === 1 ? 'sel2' : ''}" data-act="kpichart" data-k="${k}">
-          <div class="lbl"><select data-chg="kpi" data-i="${i}" onclick="event.stopPropagation()">${KPI_CHOICES.map((c) => `<option value="${c}" ${c === k ? 'selected' : ''}>${UI.MET[c].l}</option>`).join('')}</select></div>
-          <div class="val">${UI.MET[k].f(cur[k])}</div>${UI.delta(cur[k], prev[k], INVERT.has(k))}</div>`;
-      }).join('');
+          <div class="lbl"><select data-chg="kpi" data-i="${i}" onclick="event.stopPropagation()">${kopt(k)}</select>${APP.kpis.length > 1 ? `<button class="kpix" data-act="kpidel" data-i="${i}" title="Kachel entfernen">×</button>` : ''}</div>
+          <div class="val">${UI.MET[k].f(cur[k])}</div>${prev ? `${UI.delta(cur[k], prev[k], INVERT.has(k))}<div class="tiny muted">Vgl.: ${UI.MET[k].f(prev[k])}</div>` : ''}</div>`;
+      }).join('') + (APP.kpis.length < 8 ? '<div class="kpi kpiadd" data-act="kpiadd" title="Weitere Kennzahl anzeigen">＋ Kennzahl</div>' : '');
       let chart = '<div class="empty">Starten Sie die Simulation (▶ oder +1T), um Daten zu erzeugen.</div>';
       if (S.day > 0) {
         const ser = UI.dailySeries(APP.chart, range);
-        chart = C.line({
-          labels: ser.labels, tipLabels: ser.tips, height: 250, marks: UI.eventMarks(range),
-          series: APP.chart.map((k, i) => ({ name: UI.MET[k].l, color: i ? 'var(--s2)' : 'var(--s1)', values: ser.series[i], fmt: UI.MET[k].f, axis: i ? 'right' : 'left', area: !i })),
-        });
+        const series = APP.chart.map((k, i) => ({ name: UI.MET[k].l, color: i ? 'var(--s2)' : 'var(--s1)', values: ser.series[i], fmt: UI.MET[k].f, axis: i ? 'right' : 'left', area: !i }));
+        const len = range[1] - range[0] + 1;
+        const crc = UI.cmpRng();
+        if (crc && crc[1] >= 0) {
+          const pr = UI.dailySeries(APP.chart, [crc[0], crc[0] + len - 1]);
+          APP.chart.forEach((k, i) => series.push({ name: UI.MET[k].l + ' (Vergleich)', color: i ? 'var(--s2)' : 'var(--s1)', values: pr.series[i].map((v) => (isFinite(v) ? v : 0)), fmt: UI.MET[k].f, axis: i ? 'right' : 'left', dash: true }));
+        }
+        chart = C.line({ labels: ser.labels, tipLabels: ser.tips, height: 250, marks: UI.eventMarks(range), series });
       }
       // kritische Ereignisse
       const crit = S.market.events.filter((e) => e.fixable && !e.done && e.start <= S.day && e.end >= S.day);
@@ -111,12 +118,56 @@
       }
       const newsCard = UI.card('Neuigkeiten aus dem Markt', news ? `<ul class="feed">${news}</ul>` : '<div class="empty">Noch ruhig im Markt …</div>', { flush: true, tools: '<a data-act="nav" data-v="events">Alle</a>' });
       return UI.head('Übersicht', `<button class="btn primary" data-act="newcampaign">＋ Neue Kampagne</button>`) + critHtml
-        + `<div class="card"><div class="kpis">${tiles}</div><div class="bd" style="padding-top:12px">${chart}</div></div>`
+        + `<div class="card"><div class="kpis">${tiles}</div><div class="bd" style="padding-top:12px">${chart}${prev ? `<div class="tiny muted" style="margin-top:4px">Gestrichelt: ${esc(UI.COMPARE[APP.compare])} (${UI.cmpLabel()})</div>` : ''}</div></div>`
+        + UI.monthCompare(dim, id)
         + `<div class="grid g21"><div>${UI.card('Kampagnen', table, { flush: true, tools: '<a data-act="nav" data-v="campaigns">Alle Kampagnen</a>' })}${newsCard}</div><div>${goalsCard}${scoreCard}${marketCard}${pnl}</div></div>`;
     },
   };
   ACT.kpichart = (el, d) => { const k = d.k; if (APP.chart[0] === k) return; APP.chart = [k, APP.chart[0]]; UI.renderMain(true); };
   ACT.chg_kpi = (el, d) => { APP.kpis[+d.i] = el.value; UI.renderMain(true); };
+  ACT.kpiadd = () => { const next = KPI_CHOICES.find((k) => !APP.kpis.includes(k)) || 'ctr'; APP.kpis.push(next); UI.renderMain(true); };
+  ACT.kpidel = (el, d) => { const k = APP.kpis.splice(+d.i, 1)[0]; if (APP.chart.includes(k)) APP.chart = APP.chart.filter((x) => x !== k).concat(APP.kpis.filter((x) => !APP.chart.includes(x))).slice(0, 2); UI.renderMain(true); };
+
+  // ---------- Monatsvergleich ----------
+  UI.monthCompare = function (dim, id) {
+    const S = APP.S;
+    if (S.day < 1) return '';
+    const months = [];
+    for (let d = 0; d < S.day; d++) {
+      const dt = U.dayToDate(S.startDate, d), key = dt.getUTCFullYear() * 12 + dt.getUTCMonth();
+      let m = months[months.length - 1];
+      if (!m || m.key !== key) { m = { key, from: d, to: d, dt }; months.push(m); } else m.to = d;
+    }
+    const keys = APP.mcKeys || APP.kpis;
+    for (const m of months) {
+      m.v = UI.ext(E.derive(E.sumRange(S, dim, id, m.from, m.to)));
+      m.days = m.to - m.from + 1; m.full = U.daysInMonth(m.dt);
+    }
+    const sumKeys = new Set(UI.SUMMABLE.concat(['gp', 'rgp']));
+    const rows = months.slice().reverse().slice(0, 12).map((m) => {
+      const i = months.indexOf(m), pm = months[i - 1];
+      const partial = m.days < m.full;
+      const cells = keys.map((k) => {
+        const v = m.v[k], pv = pm ? pm.v[k] : null;
+        // Teilmonate fair vergleichen: summierbare Werte je Tag auf den vollen Monat hochrechnen
+        const proj = partial && sumKeys.has(k) ? (v / m.days) * m.full : v;
+        const pproj = pm && pm.days < pm.full && sumKeys.has(k) ? (pv / pm.days) * pm.full : pv;
+        return `<td class="num">${UI.MET[k].f(v)}${partial && sumKeys.has(k) ? `<div class="tiny muted" title="Hochrechnung auf den vollen Monat">≈ ${UI.MET[k].f(proj)}</div>` : ''}${pm ? UI.delta(proj, pproj, INVERT.has(k)).replace('class="delta', 'class="delta tiny') : ''}</td>`;
+      }).join('');
+      return `<tr><td><b>${U.MONTHS[m.dt.getUTCMonth()]} ${m.dt.getUTCFullYear()}</b>${partial ? `<div class="tiny muted">${m.days} von ${m.full} Tagen</div>` : ''}</td>${cells}</tr>`;
+    }).join('');
+    const k0 = keys[0];
+    const bars = C.bars({ items: months.slice(-12).map((m) => ({ label: U.MONTHS[m.dt.getUTCMonth()], value: m.v[k0] || 0, color: C.SERIES[0] })), fmt: UI.MET[k0].f, height: 160 });
+    return UI.card('Monatsvergleich', `<div class="small muted" style="margin-bottom:8px">Kalendermonate mit Veränderung zum Vormonat. Laufende bzw. angebrochene Monate werden für den Vergleich auf den vollen Monat hochgerechnet (≈).</div><div class="tablewrap"><table class="t"><thead><tr><th>Monat</th>${keys.map((k) => `<th class="num">${UI.MET[k].l}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div><div style="margin-top:12px"><div class="small muted">${UI.MET[k0].l} je Monat</div>${bars}</div>`, { tools: '<button class="btn sm" data-act="mcpick">Kennzahlen wählen</button>' });
+  };
+  ACT.mcpick = () => {
+    const cur = APP.mcKeys || APP.kpis;
+    UI.modal('Kennzahlen im Monatsvergleich', UI.MET_GROUPS.map(([g, keys]) => `<h3 style="margin:12px 0 6px;font-size:14px">${g}</h3><div class="colpick">${keys.map((k) => `<label class="chk"><input type="checkbox" name="mc_${k}" ${cur.includes(k) ? 'checked' : ''}> ${esc(UI.MET[k].l)}</label>`).join('')}</div>`).join(''), {
+      saveLabel: 'Übernehmen',
+      onSave: () => { const all = UI.MET_GROUPS.flatMap((x) => x[1]); const ch = all.filter((k) => UI.val('mc_' + k)); if (!ch.length) return false; APP.mcKeys = cur.filter((k) => ch.includes(k)).concat(ch.filter((k) => !cur.includes(k))); },
+    });
+  };
+
   ACT.fixevent = (el, d) => { const e = APP.S.market.events.find((x) => x.id === d.id); if (e) { R.fixEvent(APP.S, e); UI.toast('Problem behoben: ' + e.name, 'good'); UI.render(); } };
 
   // ---------- Empfehlungen ----------

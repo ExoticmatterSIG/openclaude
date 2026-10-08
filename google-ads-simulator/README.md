@@ -91,6 +91,16 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
   Anteil an Impressionen, Qualitätsfaktor (`js/glossary-detail.js`).
 - **Mehr Kennzahlen & Spaltenauswahl:** „▦ Spalten" in Kampagnen, Anzeigengruppen, Keywords und Suchbegriffen; zusätzlich
   ROAS in %, Wert/Conv., Wert/Klick, Anteil Impr. oben/ganz oben, Deckungsbeitrag, echte Kosten/Conv., Messlücke.
+- **Kennzahlen & Vergleich wie in Google Ads:** Bis zu 8 frei wählbare KPI-Kacheln (alle Kennzahlen, gruppiert),
+  Vergleichszeitraum „Vorheriger Zeitraum", „Vormonat" oder „Vorjahr" mit gestrichelter Vergleichslinie im Diagramm,
+  Veränderung in den Kacheln und (abschaltbar) unter jedem Tabellenwert sowie ein **Monatsvergleich** mit Hochrechnung
+  angebrochener Monate und frei wählbaren Kennzahlen.
+- **Werbezeitplaner:** Zeitplan-Einträge wie im Original (Tag/Tagesgruppe, Von–Bis, Gebotsanpassung, Leistung je Eintrag,
+  Inline-Bearbeitung), Bearbeiten-Dialog mit „＋ Hinzufügen", Vorlagen, interaktives Raster (Ziehen zum Markieren mit Maus
+  oder Finger, Zeile/Spalte per Klick, Anpassung setzen, Zeiten ausschalten, Leistung einblenden) und Berichte nach Tag,
+  Stunde sowie Tag & Stunde. Abweichung: ganze Stunden statt 15-Minuten-Schritten.
+- **Tipps mit Umsetzung:** Jeder Tipp zeigt vorab „Worum geht's?", nach dem Kauf eine Schritt-für-Schritt-Umsetzung und
+  „Springe zu"-Buttons in die passenden Bereiche.
 - **Ziel-ROAS-/Ziel-CPA-Rechner** im Gebotsstrategie-Formular: Ist-Wert in %, Break-even, Bedeutung des eingegebenen Werts
   und Einordnung (zu streng, unter Break-even, realistisch).
 - **Geführte Hilfe:** Bei Problemen (abgelehnte Anzeigen mit konkreter Textstelle, schwache Anzeigenstärke, fehlende Assets,

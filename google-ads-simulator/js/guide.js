@@ -226,6 +226,7 @@
     return UI.card('Lernhilfen', `<div style="display:flex;flex-direction:column;gap:10px">
       ${row('guide', 'Geführte Hilfe bei Problemen', 'Zeigt bei abgelehnten Anzeigen, fehlenden Assets, Budget-/Zielproblemen, Tracking usw. Ursache und Schritt-für-Schritt-Lösung.')}
       ${row('tips', 'Erklärungen beim Überfahren', 'Kurze Erklärung zu Kennzahlen und Begriffen (Tabellenköpfe, Kacheln, Formularfelder).')}
+      ${row('cmpTables', 'Veränderung in Tabellen anzeigen', 'Bei aktivem Vergleichszeitraum (z. B. „Vgl.: Vormonat") steht unter jedem Kennzahlwert die prozentuale Veränderung.')}
       ${row('tipMore', '„Mehr erfahren" in Erklärungen', 'Button im Tooltip zu ausführlichen Erklärungen mit Formel, Beispiel, Ihren Zahlen und Unterschieden zu Google Ads.')}
       <div class="small muted">Gilt für alle Spielstände in diesem Browser. Profis können alles ausschalten.</div></div>`);
   };

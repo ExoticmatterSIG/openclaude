@@ -6,7 +6,7 @@
 
   const APP = (G.APP = {
     S: null, view: 'overview', scope: { cid: null, agid: null }, range: 'last30', running: false, speed: 2,
-    chart: ['clk', 'cost'], kpis: ['clk', 'imp', 'cost', 'conv'], sort: {}, sel: {}, q: {}, tab: {}, busy: false,
+    chart: ['clk', 'cost'], kpis: ['clk', 'imp', 'cost', 'conv'], compare: 'prev', sort: {}, sel: {}, q: {}, tab: {}, busy: false,
   });
   const V = (G.V = {}); // Views: name -> { title, render() }
   const ACT = (G.ACT = {}); // Aktionen: name -> (el, data, ev)
@@ -78,8 +78,38 @@
     return [Math.max(0, S.day - map[key]), to];
   };
   UI.prevRng = function () { const [a, b] = UI.rng(); const len = b - a + 1; return [a - len, a - 1]; };
+  // Vergleichszeitraum wie in Google Ads: vorheriger Zeitraum, Vormonat oder Vorjahr
+  UI.COMPARE = { off: 'Kein Vergleich', prev: 'Vorheriger Zeitraum', month: 'Vormonat', year: 'Vorjahr' };
+  const shiftMonths = (S, day, n) => {
+    const d = U.dayToDate(S.startDate, day), y = d.getUTCFullYear(), m = d.getUTCMonth() - n;
+    const dim = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    const t = Date.UTC(y, m, Math.min(d.getUTCDate(), dim));
+    return Math.round((t - U.parseISO(S.startDate).getTime()) / 86400000);
+  };
+  UI.cmpRng = function (key = APP.compare) {
+    if (!key || key === 'off' || !APP.S) return null;
+    const [a, b] = UI.rng();
+    if (key === 'prev') return UI.prevRng();
+    const n = key === 'month' ? 1 : 12;
+    return [shiftMonths(APP.S, a, n), shiftMonths(APP.S, b, n)];
+  };
+  UI.cmpLabel = function () {
+    const r = UI.cmpRng();
+    if (!r) return '';
+    const S = APP.S;
+    return r[1] < 0 ? 'keine Daten' : `${U.fmtDate(U.dayToDate(S.startDate, Math.max(0, r[0])), false)} – ${U.fmtDate(U.dayToDate(S.startDate, r[1]), false)}`;
+  };
+  // Vergleichswert einer Tabellenzeile (Metrik-Objekt kennt seine Quelle)
+  UI._cmpCache = new Map();
+  UI.mPrev = function (m) {
+    const src = m && m._src, r = UI.cmpRng();
+    if (!src || !r) return null;
+    const key = src.join('|') + '|' + r.join('-');
+    if (!UI._cmpCache.has(key)) UI._cmpCache.set(key, r[1] < 0 ? null : UI.ext(E.derive(E.sumRange(APP.S, src[0], src[1], Math.max(0, r[0]), r[1]))));
+    return UI._cmpCache.get(key);
+  };
   UI.sum = (dim, id, r = UI.rng()) => E.sumRange(APP.S, dim, id, r[0], r[1]);
-  UI.m = (dim, id, r) => UI.ext(E.derive(UI.sum(dim, id, r)));
+  UI.m = (dim, id, r) => { const m = UI.ext(E.derive(UI.sum(dim, id, r))); if (!r) Object.defineProperty(m, '_src', { value: [dim, id], enumerable: false }); return m; };
   UI.rangeLabel = function () {
     const S = APP.S, [a, b] = UI.rng();
     if (b < a) return 'Noch keine Daten';
@@ -87,7 +117,17 @@
   };
 
   // ---------- Tabellen ----------
-  UI.mcol = (k, extra = {}) => ({ k, l: MET[k].l, num: true, f: (r) => MET[k].f(r.m[k]), sort: (r) => r.m[k], ...extra });
+  UI.INVERT = new Set(['cpc', 'cost', 'cpa', 'lostB', 'lostR', 'gap', 'rcpa', 'cpm', 'cpv', 'inv']);
+  UI.cellDelta = function (k, m) {
+    if (!UI.prefs().cmpTables || !m || !m._src) return '';
+    const p = UI.mPrev(m);
+    if (!p || !p[k] || !isFinite(m[k])) return '';
+    const d = m[k] / p[k] - 1;
+    if (!isFinite(d)) return '';
+    const good = UI.INVERT.has(k) ? d < 0 : d > 0;
+    return `<div class="cdelta ${Math.abs(d) < 0.005 ? 'muted' : good ? 'up' : 'down'}" title="Vergleich: ${esc(MET[k].f(p[k]))}">${d > 0 ? '▲' : d < 0 ? '▼' : '±'}${f.pct0(Math.abs(d))}</div>`;
+  };
+  UI.mcol = (k, extra = {}) => ({ k, l: MET[k].l, num: true, f: (r) => MET[k].f(r.m[k]) + UI.cellDelta(k, r.m), sort: (r) => r.m[k], ...extra });
   UI.mcols = (keys) => keys.map((k) => UI.mcol(k));
   UI.table = function (id, cols, rows, o = {}) {
     const st = APP.sort[id] || o.defaultSort || null;
@@ -126,7 +166,7 @@
   UI.prefs = function () {
     if (prefs) return prefs;
     try { prefs = JSON.parse(localStorage.getItem(PREF_KEY) || 'null'); } catch (e) { prefs = null; }
-    prefs = Object.assign({ guide: true, tips: true, tipMore: true, cols: {} }, prefs || {});
+    prefs = Object.assign({ guide: true, tips: true, tipMore: true, cmpTables: true, cols: {} }, prefs || {});
     return prefs;
   };
   UI.setPref = function (k, v) { UI.prefs()[k] = v; try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) { /* nur im Speicher */ } };
@@ -180,13 +220,14 @@
     const crumbs = `<div class="crumbs"><a data-act="scope" data-cid="">Alle Kampagnen</a>${c ? ` › <a data-act="scope" data-cid="${c.id}">${esc(c.name)}</a>` : ''}${ag ? ` › ${esc(ag.name)}` : ''}</div>`;
     const scopeSel = o.noScope ? '' : `<select data-chg="scope" title="Kampagne"><option value="">Alle Kampagnen</option>${UI.campOpts(APP.scope.cid)}</select>`;
     const agSel = o.agScope && c ? `<select data-chg="agscope" title="Anzeigengruppe"><option value="">Alle Anzeigengruppen</option>${M.agsOf(S, c.id).map((a) => `<option value="${a.id}" ${a.id === APP.scope.agid ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : '';
-    const rangeSel = o.noRange ? '' : `<select data-chg="range" title="Zeitraum">${Object.entries(UI.RANGES).map(([k, v]) => `<option value="${k}" ${k === APP.range ? 'selected' : ''}>${v}</option>`).join('')}</select><span class="muted small hide-sm">${UI.rangeLabel()}</span>`;
+    const rangeSel = o.noRange ? '' : `<select data-chg="range" title="Zeitraum">${Object.entries(UI.RANGES).map(([k, v]) => `<option value="${k}" ${k === APP.range ? 'selected' : ''}>${v}</option>`).join('')}</select><span class="muted small hide-sm">${UI.rangeLabel()}</span><select data-chg="compare" title="Vergleichen mit">${Object.entries(UI.COMPARE).map(([k, v]) => `<option value="${k}" ${k === APP.compare ? 'selected' : ''}>${k === 'off' ? v : 'Vgl.: ' + v}</option>`).join('')}</select>${APP.compare !== 'off' ? `<span class="muted small hide-sm" title="Vergleichszeitraum">${UI.cmpLabel()}</span>` : ''}`;
     return `<div class="pagehead"><div>${o.noScope ? '' : crumbs}<h1>${title}</h1></div><div class="tools">${scopeSel}${agSel}${rangeSel}${tools}</div></div>`;
   };
 
   // ---------- Modal / Toast / Popover ----------
   UI.modal = function (title, body, o = {}) {
     UI.closeModal();
+    if (UI.hideTip) UI.hideTip();
     const root = document.getElementById('modal-root');
     root.innerHTML = `<div class="backdrop" data-act="${o.static ? '' : 'mclose-bg'}"><div class="modal ${o.wide ? 'wide' : ''}" role="dialog" aria-modal="true"><div class="mh"><h2>${title}</h2><button class="iconbtn" data-act="mclose" title="Schließen">✕</button></div><div class="mb">${body}</div>${o.footer !== false ? `<div class="mf">${o.footer || `<button class="btn" data-act="mclose">Abbrechen</button><button class="btn primary" data-act="msave">${o.saveLabel || 'Speichern'}</button>`}</div>` : ''}</div></div>`;
     UI._onSave = o.onSave || null;
@@ -286,6 +327,8 @@
     if (!force && ae && main.contains(ae) && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) && ae.type !== 'checkbox') return; // Eingaben nicht zerstören
     const v = V[APP.view] || V.overview;
     C.reset();
+    if (UI.hideTip) UI.hideTip();
+    UI._cmpCache = new Map();
     const y = window.scrollY;
     try {
       main.innerHTML = (APP.sandbox && G.ACAD ? G.ACAD.banner() : '') + v.render();
@@ -403,6 +446,7 @@
     chg_scope: (el) => { APP.scope = { cid: el.value || null, agid: null }; UI.render(true); },
     chg_agscope: (el) => { APP.scope.agid = el.value || null; UI.render(true); },
     chg_range: (el) => { APP.range = el.value; UI.render(true); },
+    chg_compare: (el) => { APP.compare = el.value; UI.render(true); },
     inp_tsearch: (el, d) => { APP.q[d.t] = el.value; UI.renderMain(true); const n = document.querySelector(`[data-inp="tsearch"][data-t="${d.t}"]`); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } },
     tab: (el, d) => { APP.tab[d.g] = d.v; UI.renderMain(true); },
     colpick: (el, d) => {

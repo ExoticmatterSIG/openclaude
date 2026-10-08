@@ -120,6 +120,43 @@
     return li(out.slice(0, 5));
   } };
 
+  // ---------- Erklärung & Sprungziele je Tipp ----------
+  // when = wann der Tipp hilft (vor dem Kauf sichtbar), how = Umsetzung Schritt für Schritt, go = [Ansicht, Beschriftung]
+  const GUIDE = {
+    g_qs: { when: 'Wenn Ihre Klickpreise hoch sind oder Keywords einen QF unter 6 haben.', how: ['Keywords öffnen und nach QF sortieren', 'Beim schwächsten Keyword den Bestandteil prüfen (Tooltip am QF)', 'Anzeige der Gruppe bearbeiten: Keyword in Titel 1', 'Nach einigen Tagen den QF erneut prüfen'], go: [['keywords', 'Keywords'], ['ads', 'Anzeigen']] },
+    g_broad: { when: 'Bevor Sie Keywords auf „weitgehend passend" umstellen.', how: ['Gebotsstrategie der Kampagne prüfen (Smart Bidding?)', 'Conversion-Volumen der letzten 30 Tage prüfen (≥ 30)', 'Erst dann Keyword-Option ändern', 'Suchbegriffe wöchentlich kontrollieren'], go: [['keywords', 'Keywords'], ['campaigns', 'Kampagnen']] },
+    g_neg: { when: 'Sobald Ihre Kampagnen ein paar Tage gelaufen sind – danach wöchentlich.', how: ['Suchbegriffe öffnen, nach Kosten sortieren', 'Irrelevante Begriffe markieren', '„Als ausschließendes Keyword" klicken', 'Für mehrere Kampagnen eine Liste unter „Ausschließende Keywords" anlegen'], go: [['searchterms', 'Suchbegriffe'], ['negatives', 'Ausschließende Keywords']] },
+    g_budget: { when: 'Wenn eine Kampagne „Eingeschränkt durch Budget" zeigt.', how: ['Kampagnen öffnen, Spalten „Verl. Impr.-Anteil (Budget/Rang)" ansehen', 'Spalte „Deckungsbeitrag" über „▦ Spalten" einblenden', 'Profitabel → Budget erhöhen; unprofitabel → Gebote/Ziele senken'], go: [['campaigns', 'Kampagnen']] },
+    g_smart: { when: 'Nach einem Wechsel der Gebotsstrategie oder Änderung von Zielwerten.', how: ['Status „Lernphase" in der Kampagnentabelle abwarten', 'Zielwerte höchstens um 10–15 % ändern', 'Erst nach ca. 2 Wochen bewerten', 'Tracking unter Tools → Conversions prüfen'], go: [['campaigns', 'Kampagnen'], ['conversions', 'Conversions']] },
+    g_brand: { when: 'Wenn Sie eine Markenkampagne betreiben oder planen.', how: ['Auktionsdaten öffnen: Bieten Mitbewerber auf Ihre Marke?', 'In der Übersicht organische Markenconversions ansehen', 'Markengebote niedrig halten, wenn kaum Konkurrenz'], go: [['auction', 'Auktionsdaten'], ['overview', 'Übersicht']] },
+    g_lag: { when: 'Wenn die letzten Tage plötzlich schlecht aussehen.', how: ['Zeitraum so wählen, dass die letzten 7 Tage nicht dominieren', 'Vergleich „Vorheriger Zeitraum" mit gleichem Abstand nutzen', 'Unter Conversions die Verzögerung je Aktion beachten'], go: [['conversions', 'Conversions'], ['reports', 'Berichte']] },
+    g_psy: { when: 'Wenn Sie Anzeigentexte schreiben oder Shop-Hebel aktivieren.', how: ['Conversion & Psychologie öffnen: Trigger-Analyse Ihrer Anzeigen', 'Social Proof/Risikoumkehr in Anzeigen ergänzen', 'Dark Patterns deaktiviert lassen'], go: [['cro', 'Conversion & Psychologie'], ['ads', 'Anzeigen']] },
+    g_display: { when: 'Wenn Sie Display-, Demand-Gen- oder PMax-Kampagnen betreiben.', how: ['Kampagneneinstellungen (⚙) öffnen', 'App-Inventar und sensible Inhalte ausschließen', 'Bildanzeigen regelmäßig erneuern', 'Erfolg im Bereich Unternehmen & GuV prüfen'], go: [['campaigns', 'Kampagnen'], ['pmaxinsights', 'PMax-Kanalbericht']] },
+    g_boss: { when: 'Wenn das Vertrauen der Geschäftsleitung sinkt oder ein Quartal knapp wird.', how: ['Übersicht: Monatsbudget-Hochrechnung prüfen', 'Unternehmen & GuV: Ziele und Vertrauensverlauf ansehen', 'Tracking und Consent Mode sauber halten'], go: [['overview', 'Übersicht'], ['business', 'Unternehmen & GuV']] },
+    g_bank_rate: { when: 'Vor jeder Zinsänderung.', how: ['Konditionen & Zinsen öffnen', 'Effektiven 12-Monats-Zins mit dem oberen Marktquartil vergleichen', 'Antrag an die ALCO stellen', 'Anzeigen mit Zinsangaben danach sofort anpassen'], go: [['conditions', 'Konditionen & Zinsen'], ['ads', 'Anzeigen']] },
+    g_bank_b2b: { when: 'Wenn viele Anträge abgelehnt werden oder Privatkunden klicken.', how: ['Anzeigen öffnen und „für Geschäftskunden" in Titel aufnehmen', 'Generische Keywords prüfen und ggf. pausieren', 'Offline-Conversion-Import beauftragen'], go: [['ads', 'Anzeigen'], ['keywords', 'Keywords'], ['conditions', 'Konditionen & Zinsen']] },
+    d_waste: { when: 'Wenn Kosten steigen, aber Conversions nicht.', how: ['Unten genannte Begriffe in den Suchbegriffen markieren', 'Geringe Kaufabsicht → als ausschließendes Keyword', 'Hohe Absicht ohne Abschluss → Anzeige und Landingpage prüfen'], go: [['searchterms', 'Suchbegriffe'], ['negatives', 'Ausschließende Keywords']] },
+    d_camps: { when: 'Um zu entscheiden, wo Budget hin- oder abfließen soll.', how: ['Kampagnen mit negativem Beitrag: Gebote/Ziele senken oder pausieren', 'Positive Kampagnen mit Budget-Engpass: Budget erhöhen', 'Spalte „Deckungsbeitrag" über „▦ Spalten" dauerhaft einblenden'], go: [['campaigns', 'Kampagnen'], ['business', 'Unternehmen & GuV']] },
+    d_is: { when: 'Wenn Sie nicht wissen, ob mehr Budget oder höhere Gebote helfen.', how: ['Budget-Engpass → Kampagne bearbeiten, Budget anpassen', 'Rang-Engpass → Qualitätsfaktor der Keywords verbessern', 'Danach Anteil an Impressionen im Vergleichszeitraum prüfen'], go: [['campaigns', 'Kampagnen'], ['keywords', 'Keywords']] },
+    d_qs: { when: 'Wenn wichtige Keywords teuer sind.', how: ['Keywords öffnen und die genannten Keywords suchen', 'Je nach schwachem Bestandteil Anzeige, Gruppe oder Landingpage verbessern'], go: [['keywords', 'Keywords'], ['ads', 'Anzeigen']] },
+    d_time: { when: 'Bei manuellen Geboten, um schwache Zeiten zu entlasten.', how: ['Werbezeitplaner öffnen und Kampagne wählen', 'Reiter „Raster bearbeiten": schwache Stunden markieren', 'Z. B. −30 % setzen; starke Zeiten ggf. erhöhen'], go: [['schedule', 'Werbezeitplaner']] },
+    d_devices: { when: 'Bei manuellen Geboten mit spürbaren Geräteunterschieden.', how: ['Geräte öffnen', 'Empfohlene Gebotsanpassung je Gerät und Kampagne eintragen', 'Nach 2 Wochen erneut prüfen'], go: [['devices', 'Geräte']] },
+    d_comp: { when: 'Wenn Klickpreise plötzlich steigen oder Mitbewerber auftauchen.', how: ['Auktionsdaten: Überschneidungsrate der genannten Mitbewerber beobachten', 'Bei Ausstieg eines Mitbewerbers Budget für günstigere Klicks bereithalten'], go: [['auction', 'Auktionsdaten'], ['market', 'Markt & Wettbewerb']] },
+    d_outlook: { when: 'Vor Saisonspitzen und zur Budgetplanung.', how: ['Budgets 1–2 Wochen vor Nachfragespitzen anpassen', 'Kalenderereignisse unter News & Ereignisse verfolgen'], go: [['market', 'Markt & Wettbewerb'], ['events', 'News & Ereignisse']] },
+    d_psy: { when: 'Wenn Klicks gut, Conversions aber schwach sind.', how: ['Genannte Shop-Hebel unter Conversion & Psychologie aktivieren', 'Riskante Muster abschalten', 'Social Proof in Anzeigen ergänzen'], go: [['cro', 'Conversion & Psychologie'], ['ads', 'Anzeigen']] },
+    d_rates: { when: 'Vor dem nächsten Konditionsantrag.', how: ['Konditionen & Zinsen öffnen', 'Empfohlene Zinsen beantragen', 'Zinsangaben in Anzeigen anpassen'], go: [['conditions', 'Konditionen & Zinsen'], ['ads', 'Anzeigen']] },
+    d_audit: { when: 'Wenn Sie nicht wissen, wo Sie anfangen sollen.', how: ['Maßnahmen von oben nach unten abarbeiten', 'Nach 2–3 Wochen Wirkung im Vergleichszeitraum prüfen'], go: [['recs', 'Empfehlungen'], ['searchterms', 'Suchbegriffe'], ['conversions', 'Conversions']] },
+  };
+  T.guide = (id) => GUIDE[id] || null;
+  T.guideHtml = function (id, bought) {
+    const g = GUIDE[id];
+    if (!g) return '';
+    const jumps = g.go.filter(([v]) => V[v] && !(v === 'conditions' && !APP.S.bank)).map(([v, l]) => `<button class="btn sm" data-act="tipgo" data-v="${v}">↗ ${esc(l)}</button>`).join('');
+    if (!bought) return `<details class="tipwhen"><summary class="small">ℹ Worum geht's?</summary><div class="small" style="margin-top:4px"><b>Hilfreich:</b> ${esc(g.when)}</div><div class="tipjump">${jumps.replace(/↗ /g, '↗ Springe zu ')}</div></details>`;
+    return `<div class="tiphow"><b class="small">So setzen Sie es um</b><ol class="small">${g.how.map((x) => `<li>${esc(x)}</li>`).join('')}</ol><div class="tipjump">${jumps.replace(/↗ /g, '↗ Springe zu ')}</div></div>`;
+  };
+  ACT.tipgo = (el, d) => { APP.scope = { cid: null, agid: null }; UI.go(d.v); };
+
   T.catalog = function (S) {
     const scale = U.clamp(S.company.startCash / 30000, 1, 4);
     const gen = GENERAL.concat(S.bank ? BANK_GENERAL : []).map(([id, title, teaser, body]) => ({ id, kind: 'Praxistipp', title, teaser, price: Math.round((150 * scale) / 10) * 10, run: () => body }));
@@ -148,8 +185,8 @@
         const b = bought[t.id];
         const age = b ? S.day - b.day : 0;
         const head = `<div class="rec" style="border-top:0"><div class="ic">${t.kind === 'Premium' ? '🏆' : t.kind === 'Konto-Analyse' ? '🔍' : '💡'}</div><div class="body"><div class="ttl">${esc(t.title)} <span class="tag">${t.kind}</span></div><div class="small muted" style="margin:4px 0">${esc(t.teaser)}</div>`;
-        if (!b) return `<div class="card">${head}<button class="btn sm primary" data-act="tipbuy" data-id="${t.id}">Freischalten für ${f.eur0(t.price)}</button></div></div></div>`;
-        return `<div class="card">${head}<div class="small" style="margin-top:6px">${b.html}</div><div class="tiny muted" style="margin-top:8px">Gekauft am ${U.fmtDate(U.dayToDate(S.startDate, Math.max(0, b.day - 1)), false)}${t.kind !== 'Praxistipp' ? ` · Stand vor ${age} Tagen <button class="btn sm ghost" data-act="tipbuy" data-id="${t.id}">Aktualisieren (${f.eur0(t.price)})</button>` : ''}</div></div></div></div>`;
+        if (!b) return `<div class="card">${head}${T.guideHtml(t.id, false)}<button class="btn sm primary" data-act="tipbuy" data-id="${t.id}" style="margin-top:6px">Freischalten für ${f.eur0(t.price)}</button></div></div></div>`;
+        return `<div class="card">${head}<div class="small" style="margin-top:6px">${b.html}</div>${T.guideHtml(t.id, true)}<div class="tiny muted" style="margin-top:8px">Gekauft am ${U.fmtDate(U.dayToDate(S.startDate, Math.max(0, b.day - 1)), false)}${t.kind !== 'Praxistipp' ? ` · Stand vor ${age} Tagen <button class="btn sm ghost" data-act="tipbuy" data-id="${t.id}">Aktualisieren (${f.eur0(t.price)})</button>` : ''}</div></div></div></div>`;
       };
       const group = (k, title) => { const items = cat.filter((t) => t.kind === k); return items.length ? `<h3 style="margin:18px 0 10px">${title}</h3><div class="grid g2">${items.map(card).join('')}</div>` : ''; };
       return UI.head('Tipps & Beratung', '', { noScope: true, noRange: true })
