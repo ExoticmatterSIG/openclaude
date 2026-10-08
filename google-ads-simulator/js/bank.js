@@ -112,6 +112,7 @@
     { id: 'kyc_backlog', p: 0.004, dur: [10, 25], sev: 'warn', industries: ['vwbank'], name: 'Rückstau in der Kontoeröffnung (KYC)', desc: 'Das Backoffice kommt mit der Prüfung von Handelsregister, Transparenzregister und wirtschaftlich Berechtigten nicht hinterher. Eröffnungen verzögern sich, Antragsteller springen ab.', fixable: { label: 'Zusätzliche KYC-Kapazität einkaufen', cost: 3000 } },
     { id: 'videoident_down', p: 0.004, dur: [1, 3], sev: 'crit', industries: ['vwbank'], name: 'Störung beim VideoIdent-Dienstleister', desc: 'Legitimationen schlagen fehl. Anträge bleiben unvollständig – Klicks werden weiter bezahlt.' },
     { id: 'fin_reverify', p: 0.0015, dur: [1, 1], sev: 'crit', industries: ['vwbank'], name: 'Google fordert erneute Finanzdienstleister-Verifizierung', desc: 'Google verlangt eine erneute Verifizierung (Abgleich mit dem BaFin-Register). Frist: 30 Tage, Prüfung dauert 1–2 Wochen. Ohne Verifizierung werden keine Finanzanzeigen mehr ausgeliefert.' },
+    { id: 'brand_safety', p: 0.004, dur: [1, 1], sev: 'crit', requires: 'unsafeDisplay', name: 'Brand-Safety-Vorfall', desc: 'Screenshots zeigen Ihre Anzeige neben Desinformations-Inhalten auf einer Ramsch-Website. Die Unternehmenskommunikation fordert sofortige Inhaltsausschlüsse.' },
     { id: 'zins_abmahnung', p: 0.002, dur: [1, 1], sev: 'warn', industries: ['vwbank'], name: 'Prüfung von Zinswerbung durch Wettbewerbshüter', desc: 'Nach Beschwerden über irreführende Zinswerbung werden Anzeigen mit Zinsangaben erneut geprüft.' },
   );
 
@@ -182,7 +183,7 @@
   // ---------- Produkte, Volumina, Kundenwert ----------
   const THEME_PROD = { tagesgeld: 'tg', festgeld: 'fg', giro: 'giro', visa: 'visa' };
   B.prodOf = (themeId) => THEME_PROD[themeId] || null;
-  B.drawOpening = function (S, rng, prod) {
+  B.drawOpening = function (S, rng, prod, q) {
     const o = S.bank.own;
     if (!prod) prod = rng.weighted([['tg', 0.35], ['fg', 0.25], ['giro', 0.25], ['visa', 0.15]], (x) => x[1])[0];
     const e = { prod };
@@ -194,15 +195,18 @@
     } else if (prod === 'giro') { e.amt = 18000 * rng.logn(0.9); e.value = o.giroFee * 36 + e.amt * B.altTG(S) / 100 * 3; }
     else { e.amt = 4000 * rng.logn(0.8); e.value = (o.visaFee + e.amt * 12 * 0.008) * 3; }
     e.value = Math.round(e.value);
+    // Finanzagenten-/Geldwäscherisiko bei Geschäftskonten aus „kostenlos"/„ohne Schufa"/generischen Suchen
+    if (e.prod === 'giro') e.fraud = rng() < (q && (['kostenlos', 'ohneschufa'].includes(q.mod) || (q.biz ?? 1) < 0.3) ? 0.07 : 0.015);
+    if (e.prod === 'tg') e.hot = Math.max(0, B.eff12(o) - B.market(S).tgP75); // Zinsjäger kommen bei Spitzenzinsen
     return e;
   };
   // Eröffnung realisieren (wird bei Eintreffen der Conversion aufgerufen)
   B.onOpen = function (S, e) {
     const b = S.bank, o = b.own, day = S.day;
     const f = (b.flows[day] = b.flows[day] || B.emptyFlow());
-    if (e.prod === 'tg') { b.book.tg.push({ amt: e.amt, promo: o.tgPromo, until: o.tgPromo > 0 ? day + Math.round(o.tgPromoM * 30.4) : day }); f.inTG += e.amt; f.nTG++; }
+    if (e.prod === 'tg') { b.book.tg.push({ amt: e.amt, promo: o.tgPromo, until: o.tgPromo > 0 ? day + Math.round(o.tgPromoM * 30.4) : day, hot: e.hot || 0 }); f.inTG += e.amt; f.nTG++; }
     else if (e.prod === 'fg') { b.book.fg.push({ amt: e.amt, rate: o.fg[e.term], term: e.term, mat: day + Math.round(e.term * 30.4), alt: B.altFG(S, e.term) }); f.inFG += e.amt; f.nFG++; }
-    else if (e.prod === 'giro') { b.book.giro.n++; b.book.giro.bal += e.amt; f.nGiro++; }
+    else if (e.prod === 'giro') { b.book.giro.n++; b.book.giro.bal += e.amt; f.nGiro++; if (e.fraud) (b.fraud = b.fraud || []).push({ day: day + 20 + Math.floor(Math.random() * 40), bal: e.amt }); }
     else { b.book.visa.n++; f.nVisa++; }
     S._otherCosts = (S._otherCosts || 0) + 45; // KYC- und Eröffnungskosten
     f.kyc += 45;
@@ -312,7 +316,7 @@
     for (const c of b.book.tg) {
       const rate = c.until > day ? c.promo : o.tgBase;
       nii += (c.amt * (altTG - rate)) / 36500;
-      let out = c.amt * tgOut;
+      let out = c.amt * tgOut * (1 + 4 * (c.hot || 0));
       if (c.until === day && c.promo > o.tgBase) out += c.amt * U.clamp(0.25 + 0.3 * (m.tgP75 - o.tgBase), 0.05, 0.6); // Zinshopper nach Aktionsende
       c.amt -= out; f.outTG += out;
     }
@@ -352,6 +356,29 @@
       if (p.status === 'disapproved' && ad.policy.status !== 'disapproved') {
         ad.policy = p; S.alerts.unshift({ day, level: 'bad', text: 'Anzeige abgelehnt: ' + p.reasons.join(', ') });
       }
+    }
+    // Geldwäsche-Verdachtsfälle (Finanzagenten) bei Geschäftskonten
+    for (const fr of (b.fraud || []).filter((x) => x.day === day)) {
+      g.n = Math.max(0, g.n - 1); g.bal = Math.max(0, g.bal - fr.bal);
+      S._otherCosts = (S._otherCosts || 0) + 350; f.kyc += 350;
+      S.alerts.unshift({ day, level: 'bad', text: 'Geldwäsche-Verdacht: Geschäftskonto als Finanzagenten-Konto gekündigt (Verdachtsmeldung, 350 € Aufwand)' });
+      b.fraudCount = (b.fraudCount || 0) + 1;
+    }
+    if (b.fraud) b.fraud = b.fraud.filter((x) => x.day > day);
+    // ALCO/Treasury entscheidet über Konditionsanträge
+    if (b.request && b.request.decideDay <= day) {
+      const r = b.request; b.request = null;
+      if (rng() < r.p) { const ch = B.setOwn(S, r.own); S.alerts.unshift({ day, level: 'good', text: 'ALCO hat Ihren Konditionsantrag genehmigt: ' + (ch.join('; ') || 'keine Änderung') + '. Denken Sie an Ihre Anzeigentexte.' }); }
+      else { S.alerts.unshift({ day, level: 'bad', text: 'ALCO lehnt Konditionsantrag ab: ' + r.why }); G.M.log(S, 'Konditionen', 'ALCO-Antrag', 'Abgelehnt: ' + r.why); }
+    }
+    // Mitbewerber ziehen nach, wenn Sie dauerhaft den Spitzenzins bieten
+    const topTG = B.eff12(o) >= Math.max(...S.competitors.filter((c) => c.active && c.rates).map((c) => B.eff12(c.rates)));
+    b.topDays = topTG ? (b.topDays || 0) + 1 : 0;
+    if (b.topDays >= 14 && (!b.lastMatch || day - b.lastMatch > 30)) {
+      const followers = S.competitors.filter((c) => c.active && c.rates && ['aggressive', 'erratic'].includes(c.style));
+      for (const c of followers) { c.rates.tgPromo = +(Math.max(c.rates.tgPromo, c.rates.tgBase, B.headlineTG(o)) + 0.1).toFixed(2); c.rates.tgPromoM = Math.max(c.rates.tgPromoM, 3); B.compThemeAggr(c); }
+      if (followers.length) S.market.log.unshift({ day, name: 'Mitbewerber ziehen beim Zins nach', desc: followers.map((c) => c.name).join(', ') + ' überbieten Ihren Spitzenzins. Ihr Vorsprung schmilzt.', sev: 'warn' });
+      b.lastMatch = day; b.topDays = 0;
     }
     b.hist.push({ day, ref: b.ref, tg: U.sum(b.book.tg, (c) => c.amt), fg: U.sum(b.book.fg, (c) => c.amt), giro: g.n, visa: v.n, ownTG: o.tgBase, ownFG12: o.fg[12], mktTG: m.tgP75, mktFG: m.fgP75 });
     if (b.hist.length > 900) b.hist.shift();
@@ -421,6 +448,19 @@
     B.snapshotOwn(S);
     if (ch.length) G.M.log(S, 'Konditionen', 'Produktkonditionen', ch.join('; '));
     return ch;
+  };
+  // Konditionsänderungen müssen von ALCO/Treasury freigegeben werden (2–6 Tage)
+  B.requestOwn = function (S, own) {
+    const o = S.bank.own, alt = B.altTG(S);
+    let p = 0.85, why = 'Marge unter der Mindestmarge der Treasury';
+    const tgMargin = alt - B.eff12(own), fgMargin = Math.min(...[3, 6, 12, 24].map((t) => B.altFG(S, t) - own.fg[t]));
+    const cheaper = own.tgBase <= o.tgBase && own.tgPromo <= o.tgPromo && [3, 6, 12, 24].every((t) => own.fg[t] <= o.fg[t]);
+    if (cheaper) p = 0.97;
+    else if (tgMargin < 0.15 || fgMargin < 0.05) p = 0.2;
+    else if (tgMargin < 0.35 || fgMargin < 0.15) { p = 0.55; why = 'Liquiditätsbedarf aktuell gering – Treasury hält Zinserhöhung für zu teuer'; }
+    if (own.tgPromo > 0 && own.tgPromo > o.tgPromo) { p *= 0.85; why = 'Aktionszins ohne ausreichende Bindungswirkung'; }
+    S.bank.request = { own, submitted: S.day, decideDay: S.day + 2 + Math.floor(Math.random() * 5), p, why };
+    G.M.log(S, 'Konditionen', 'ALCO-Antrag', 'Eingereicht');
   };
   B.startOffline = function (S) {
     if (S.bank.offline.status !== 'off') return false;

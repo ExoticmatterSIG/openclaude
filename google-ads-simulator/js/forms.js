@@ -254,6 +254,7 @@
     const body = `<div class="row"><div class="field"><span>Kampagnenname</span><input type="text" name="name" value="${esc(c.name)}"></div><div class="field"><span>Tagesbudget (€)</span><input type="number" name="budget" step="1" value="${c.budget}"></div></div>
       <div id="bidbox">${bidFields(c.type, c.bidStrategy, c.type)}</div>
       ${c.type === 'search' ? `<div class="field"><span>Netzwerke</span><label class="chk"><input type="checkbox" name="partners" ${c.networks.partners ? 'checked' : ''}> Suchnetzwerk-Partner</label><label class="chk"><input type="checkbox" name="displayExp" ${c.networks.display ? 'checked' : ''}> Displaynetzwerk (Display-Expansion)</label></div>` : ''}
+      ${['display', 'video', 'demandgen', 'pmax'].includes(c.type) ? `<div class="field"><span>Inventar & Brand Safety</span><label class="chk"><input type="checkbox" name="exApps" ${c.display.excludeApps ? 'checked' : ''}> Mobile-App-Inventar ausschließen (weniger Fehlklicks, ca. 35 % weniger Reichweite)</label><label class="chk"><input type="checkbox" name="exSens" ${c.display.excludeSensitive ? 'checked' : ''}> Inhaltsausschlüsse: sensible Inhalte & Ramsch-Websites ausschließen</label></div>` : ''}
       ${['display', 'video', 'demandgen'].includes(c.type) ? `<div class="row"><div class="field"><span>Frequency Capping (Impr. pro Nutzer/Woche)</span><input type="number" name="freq" value="${c.display.freqCap || ''}" placeholder="kein Limit"></div><div class="field"><span>Optimierte Ausrichtung</span><label class="chk"><input type="checkbox" name="optT" ${c.display.optimizedTargeting ? 'checked' : ''}> aktiviert</label></div></div>` : ''}
       ${c.type === 'pmax' ? `<div class="field"><span>Performance Max</span><label class="chk"><input type="checkbox" name="urlExp" ${c.pmax.urlExpansion ? 'checked' : ''}> Final URL-Erweiterung (alle Themen bedienen)</label><label class="chk"><input type="checkbox" name="brandEx" ${c.pmax.brandExclusion ? 'checked' : ''}> Markenausschluss (eigene Markensuchen ausschließen)</label></div>` : ''}
       <div class="row"><div class="field"><span>Enddatum (Tage ab heute, leer = keins)</span><input type="number" name="endDays" value="${c.endDay !== null ? Math.max(1, c.endDay - S.day + 1) : ''}"></div><div class="field"><span>Anzeigenrotation</span><select name="rot"><option value="optimize" ${c.adRotation === 'optimize' ? 'selected' : ''}>Optimieren</option><option value="even" ${c.adRotation === 'even' ? 'selected' : ''}>Nicht optimieren (gleichmäßig)</option></select></div><div class="field"><span>Labels (kommagetrennt)</span><input type="text" name="labels" value="${esc(c.labels.join(', '))}"></div></div>
@@ -272,6 +273,7 @@
         if (c.type === 'search') { c.networks.partners = !!UI.val('partners'); c.networks.display = !!UI.val('displayExp'); }
         if (['display', 'video', 'demandgen'].includes(c.type)) { c.display.freqCap = UI.num('freq'); c.display.optimizedTargeting = !!UI.val('optT'); }
         if (c.type === 'pmax') { c.pmax.urlExpansion = !!UI.val('urlExp'); c.pmax.brandExclusion = !!UI.val('brandEx'); }
+        if (['display', 'video', 'demandgen', 'pmax'].includes(c.type)) { c.display.excludeApps = !!UI.val('exApps'); c.display.excludeSensitive = !!UI.val('exSens'); }
         const changes = [];
         if (budget !== c.budget) changes.push(`Budget ${f.eur(c.budget)} → ${f.eur(budget)}`);
         if (JSON.stringify(b) !== JSON.stringify(c.bidStrategy)) changes.push('Gebotsstrategie → ' + M.bidLabel({ bidStrategy: b }));
@@ -381,6 +383,7 @@
       if (extra && !isNew) R.spend(S, extra, 'Creatives produziert');
       Object.assign(ad, { headlines: h, descriptions: ds, longHeadlines: lh, images: imgs, videos: vids, logos: UI.val('logos') ? 1 : 0 });
     }
+    ad.fat = 0; // aufgefrischtes Creative
     M.reviewAd(S, ad, true);
     return null;
   }
@@ -562,6 +565,7 @@
       <h3>Smart Bidding</h3><p class="small">Ziel-CPA/ROAS & Co. schätzen die Conversion-Wahrscheinlichkeit jeder Auktion – inkl. Signalen, die manuelle Gebote nicht sehen (z. B. Kaufabsicht, Remarketing). Nach Änderungen gibt es eine Lernphase mit schwankender Leistung. Ohne Conversion-Daten (z. B. Tracking-Ausfall) bietet Smart Bidding schlecht.</p>
       <h3>Budget</h3><p class="small">Google verteilt das Tagesbudget über den Tag (Pacing) und darf an einzelnen Tagen bis zu 2× ausgeben, im Monat max. 30,4×. „Eingeschränkt durch Budget" = Sie verpassen Auktionen.</p>
       <h3>Markt & Wettbewerb</h3><p class="small">Mitbewerber mit eigener KI passen Gebote und Budgets an (profitorientiert, aggressiv, sprunghaft …), steigen ein oder gehen pleite. Saisonalität, Trends, CPC-Inflation, Kalenderereignisse (Black Week, Weihnachten …) und Zufallsereignisse (Rabattschlachten, Lieferengpässe, Serverausfälle, Tracking-Fehler, Core Updates, Konjunktur) verändern den Markt.</p>
+      <h3>Zusätzliche Realismus-Faktoren</h3><p class="small"><b>Creative-Ermüdung:</b> Anzeigen verlieren mit der Zeit an Wirkung – regelmäßig auffrischen. <b>Inkrementalität:</b> Markensuchen landen auch organisch bei Ihnen; Brand-Anzeigen lohnen sich vor allem, wenn Mitbewerber auf Ihre Marke bieten. <b>Junk-Inventar:</b> Display/PMax erzeugen viele Fehlklicks in Mobile-Apps; Inhaltsausschlüsse verhindern Brand-Safety-Vorfälle. <b>Gegenreaktionen:</b> Wer dauerhaft oben steht, provoziert höhere Gebote der Konkurrenz. <b>Zielvorgaben:</b> Die Geschäftsleitung gibt ein Monatsbudget und Quartalsziele vor – Überschreitungen werden abgezogen, verfehlte Quartale kosten Budget.</p>
       <h3>Messung</h3><p class="small">Conversions kommen verzögert und werden wegen Cookie-Einwilligung nur teilweise erfasst. Im Bereich „Unternehmen & GuV" sehen Sie den <b>tatsächlichen</b> Erfolg. Ziel: Gewinn maximieren, nicht nur Klicks.</p>`, { wide: true, footer: '<button class="btn primary" data-act="mclose">Los geht\'s</button>' });
   };
 })();

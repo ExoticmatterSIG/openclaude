@@ -45,6 +45,20 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
   Landingpage-Investitionen, Markenbekanntheit
 - Speichern (automatisch), Export/Import als JSON, Hell/Dunkel-Modus, mobil nutzbar
 
+## Schwierigkeit & Realismus-Faktoren
+
+- **Schwierigkeitsgrade:** Leicht, Normal, Schwer und **Experte (realistisch)** mit wenig Kapital, aggressiveren Mitbewerbern, mehr Ereignissen und höheren Zielen
+- **Zielvorgaben der Geschäftsleitung:** Monatsbudget vom Controlling (Überschreitungen werden vom Folgemonat abgezogen) und Quartalsziele
+  mit Noten A–D. A erhöht das Budget um 15 %, zwei verfehlte Quartale in Folge kürzen es um 25 %; Erfolg hebt die Messlatte.
+- **Creative-Ermüdung:** Die CTR sinkt mit der Auslieferung (Suche bis −14 %, Display/Video bis −42 %); Überarbeiten frischt auf.
+- **Organische Markensuchen & Inkrementalität:** Markensuchen konvertieren auch ohne Anzeige; Brand-Kampagnen kannibalisieren
+  organische Klicks, schützen aber vor Mitbewerbern, die auf die Marke bieten.
+- **Junk-Inventar & Brand Safety:** Mobile-App-Placements mit versehentlichen Klicks; Inhaltsausschlüsse verhindern Brand-Safety-Vorfälle.
+- **Gegenreaktionen:** Mitbewerber erhöhen ihre Gebote, wenn sie dauerhaft unter Ihnen stehen.
+- **Bank-Modus zusätzlich:** Konditionsänderungen brauchen eine ALCO-/Treasury-Freigabe (2–6 Tage, kann abgelehnt werden),
+  „heißes Geld" aus Spitzenzinsen fließt schneller ab, Mitbewerber ziehen nach 14 Tagen Zinsführerschaft nach,
+  Geschäftskonten aus „kostenlos"/„ohne Schufa"-Suchen bergen Finanzagenten-Risiken (Geldwäsche-Verdachtsfälle).
+
 ## Bank-Modus: Passivgeschäft Geschäftskunden (VW Bank)
 
 Eigene Branche mit realistischen Mechaniken für SEA im Einlagengeschäft:

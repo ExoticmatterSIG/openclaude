@@ -33,7 +33,7 @@
         ${[3, 6, 12, 24].map((t) => `<tr><td><b>Festgeld Business</b> ${t} Monate</td><td>${inp('fg' + t, o.fg[t])} % p. a.</td><td class="wrap small muted">Kapitalmarkt-Refinanzierung ${pct(B.altFG(S, t))} → Marge ${pct(B.altFG(S, t) - o.fg[t])}</td></tr>`).join('')}
         <tr><td><b>Geschäftskonto</b> Kontoführung</td><td>${inp('giroFee', o.giroFee, '0.5')} € / Monat</td><td class="wrap small muted">Markt-Median ${f.eur(m.giroMed)} (Annahme: Produkt neu im Portfolio)</td></tr>
         <tr><td><b>Visa Business</b> Jahresgebühr</td><td>${inp('visaFee', o.visaFee, '1')} € / Jahr</td><td class="wrap small muted">Markt-Median ${f.eur(m.visaMed)} · Interchange-Ertrag ca. 0,8 % des Umsatzes</td></tr>
-      </tbody></table></div><div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn primary" data-act="banksave">Konditionen speichern</button><span class="small muted">Achtung: Anzeigen mit alten Zinsangaben werden nach ca. 2 Tagen wegen irreführender Preisangabe abgelehnt.</span></div>`;
+      </tbody></table></div><div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${b.request ? `<span class="pill learn">ALCO-Antrag in Prüfung – Entscheidung in ca. ${Math.max(0, b.request.decideDay - S.day)} T</span>` : '<button class="btn primary" data-act="banksave">Konditionsantrag an ALCO/Treasury stellen</button>'}<span class="small muted">Zinsen ändern sich erst nach Freigabe (2–6 Tage). Danach Anzeigentexte anpassen: Alte Zinsangaben werden nach ca. 2 Tagen als irreführend abgelehnt.</span></div>`;
       const pos = (x) => (x >= 1.15 ? UI.pill(['sehr attraktiv', 'good']) : x >= 0.9 ? UI.pill(['marktgerecht', 'info']) : x >= 0.6 ? UI.pill(['unter Markt', 'warn']) : UI.pill(['nicht wettbewerbsfähig', 'bad']));
       const posCard = `<dl class="kv"><dt>Tagesgeld</dt><dd>${pos(mult.tagesgeld)} <span class="small muted">Conv.-Effekt ×${f.num2(mult.tagesgeld)}</span></dd><dt>Festgeld</dt><dd>${pos(mult.festgeld)} <span class="small muted">×${f.num2(mult.festgeld)}</span></dd><dt>Geschäftskonto</dt><dd>${pos(mult.giro)} <span class="small muted">×${f.num2(mult.giro)}</span></dd><dt>Visa Business</dt><dd>${pos(mult.visa)} <span class="small muted">×${f.num2(mult.visa)}</span></dd></dl><div class="small muted" style="margin-top:8px">Vergleichsmaßstab: oberes Quartil der effektiven 12-Monats-Zinsen der Mitbewerber (Institute ohne gesetzliche Einlagensicherung mit Abschlag).</div>`;
 
@@ -63,7 +63,7 @@
       const off = b.offline, vf = b.verify;
       const offTxt = off.status === 'on' ? UI.pill(['Aktiv', 'good']) + ' <span class="small muted">Aktion „Konto eröffnet" kann jetzt primär gesetzt werden (Conversions)</span>' : off.status === 'setup' ? UI.pill(['Einrichtung läuft', 'learn']) + ` <span class="small muted">bereit in ${off.readyDay - S.day} T</span>` : UI.pill(['Nicht eingerichtet', 'warn']) + ' <button class="btn sm" data-act="bankoffline">CRM-Anbindung beauftragen (2.500 €, 7 Tage)</button>';
       const vfTxt = vf.status === 'verified' ? UI.pill(['Verifiziert', 'good']) : vf.status === 'pending' ? UI.pill(['In Prüfung', 'learn']) + ` <span class="small muted">noch ca. ${Math.max(0, vf.readyDay - S.day)} T</span>` : vf.status === 'required' ? UI.pill(['Erforderlich', 'bad']) + ` <span class="small muted">Frist: ${vf.deadline - S.day} T</span> <button class="btn sm" data-act="bankverify">Unterlagen einreichen</button>` : UI.pill(['Gesperrt – keine Auslieferung', 'bad']) + ' <button class="btn sm" data-act="bankverify">Verifizierung nachholen</button>';
-      const status = `<dl class="kv"><dt>Offline-Conversion-Import</dt><dd>${offTxt}</dd><dt>Finanzdienstleister-Verifizierung</dt><dd>${vfTxt}</dd><dt>Bestand Geschäftskonten</dt><dd>${f.int(b.book.giro.n)} · Ø-Guthaben gesamt ${mio(b.book.giro.bal)}</dd><dt>Bestand Visa Business</dt><dd>${f.int(b.book.visa.n)}</dd></dl>`;
+      const status = `<dl class="kv"><dt>Offline-Conversion-Import</dt><dd>${offTxt}</dd><dt>Finanzdienstleister-Verifizierung</dt><dd>${vfTxt}</dd><dt>Bestand Geschäftskonten</dt><dd>${f.int(b.book.giro.n)} · Ø-Guthaben gesamt ${mio(b.book.giro.bal)}</dd><dt>Bestand Visa Business</dt><dd>${f.int(b.book.visa.n)}</dd><dt>Geldwäsche-Verdachtsfälle</dt><dd>${f.int(b.fraudCount || 0)} <span class="small muted">(Finanzagenten-Konten, je 350 € Aufwand)</span></dd></dl>`;
 
       // Charts
       const h = b.hist.slice(-240);
@@ -97,8 +97,9 @@
     if (rates.some((v) => v === null || v < 0 || v > 15)) { UI.toast('Bitte gültige Zinssätze zwischen 0 und 15 % eingeben', 'bad'); return; }
     if ([own.giroFee, own.visaFee].some((v) => v === null || v < 0 || v > 500)) { UI.toast('Bitte gültige Entgelte eingeben', 'bad'); return; }
     if (own.tgPromo && (own.tgPromo <= own.tgBase || own.tgPromoM < 1 || own.tgPromoM > 12)) { UI.toast('Aktionszins muss über dem Basiszins liegen und 1–12 Monate laufen', 'bad'); return; }
-    const ch = B.setOwn(S, own);
-    UI.toast(ch.length ? 'Konditionen gespeichert: ' + ch.length + ' Änderung(en)' : 'Keine Änderungen');
+    if (JSON.stringify(own) === JSON.stringify(S.bank.own)) { UI.toast('Keine Änderungen'); return; }
+    B.requestOwn(S, own);
+    UI.toast('Antrag an ALCO/Treasury gestellt – Entscheidung in wenigen Tagen');
     UI.render(true);
   };
   ACT.bankoffline = () => UI.confirm('Offline-Conversion-Import einrichten?', 'Ihr CRM überträgt eröffnete Konten inkl. Anlagevolumen per GCLID an Google Ads. Kosten: 2.500 €, Einrichtung ca. 7 Tage. Danach können Sie auf echte Kontoeröffnungen und deren Wert bieten.', () => { B.startOffline(APP.S); UI.toast('Einrichtung beauftragt', 'good'); }, 'Beauftragen');

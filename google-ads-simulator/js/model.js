@@ -26,9 +26,10 @@
 
   // ---------- Neues Spiel ----------
   M.DIFFICULTY = {
-    easy: { name: 'Leicht', cash: 60000, comp: 0.85, events: 0.6, fixed: 0.2 },
-    normal: { name: 'Normal', cash: 30000, comp: 1.0, events: 1.0, fixed: 0.45 },
-    hard: { name: 'Schwer', cash: 15000, comp: 1.2, events: 1.5, fixed: 0.75 },
+    easy: { name: 'Leicht', cash: 60000, comp: 0.85, events: 0.6, fixed: 0.2, goal: 0.75 },
+    normal: { name: 'Normal', cash: 30000, comp: 1.0, events: 1.0, fixed: 0.45, goal: 1 },
+    hard: { name: 'Schwer', cash: 15000, comp: 1.2, events: 1.5, fixed: 0.75, goal: 1.1 },
+    expert: { name: 'Experte (realistisch)', cash: 20000, comp: 1.3, events: 1.7, fixed: 0.9, goal: 1.25 },
   };
 
   M.newGame = function (opts) {
@@ -105,6 +106,7 @@
 
     if (ind.bank) G.BANK.init(S, rng);
     if (opts.starter !== false) (ind.bank ? G.BANK.createStarter(S, rng) : M.createStarter(S, rng));
+    if (G.GOALS) G.GOALS.init(S);
     M.log(S, 'Konto', S.company.name, 'Konto eröffnet – Branche: ' + ind.name);
     S.alerts.push({ day: 0, level: 'info', text: 'Willkommen! Ihr Konto ist eingerichtet. Starten Sie die Simulation über ▶ oben rechts.' });
     return S;
@@ -174,7 +176,7 @@
       demo: { age: [0, 0, 0, 0, 0, 0, 0], gender: { m: 0, f: 0, u: 0 } },
       startDay: S.day, endDay: null, created: S.day, learnUntil: smart ? S.day + 7 : null, learnReason: smart ? 'Neue Gebotsstrategie' : null,
       convGoals: 'account', adRotation: 'optimize',
-      display: { optimizedTargeting: type !== 'video', freqCap: null, contentExclusions: [] },
+      display: { optimizedTargeting: type !== 'video', freqCap: null, contentExclusions: [], excludeApps: false, excludeSensitive: false },
       pmax: { urlExpansion: true, brandExclusion: false },
       app: { platform: 'android' },
       labels: [], isTrial: false,

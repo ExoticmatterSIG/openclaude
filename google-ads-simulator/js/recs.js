@@ -116,6 +116,15 @@
         apply: (S) => R.autoHeadlines(S, ad) });
       if (ad.policy.status === 'disapproved') push({ id: 'pol_' + ad.id, cat: 'Keywords & Anzeigen', icon: '⛔', impact: 6, cid: c.id, title: 'Abgelehnte Anzeige korrigieren', desc: ag.name + ': ' + ad.policy.reasons.join(', '), view: 'ads' });
     }
+    // Creative-Ermüdung & Junk-Inventar
+    for (const ad of S.ads) {
+      if (ad.status !== 'enabled') continue;
+      const ag = M.ag(S, ad.adGroupId); const c = ag && M.camp(S, ag.campaignId);
+      if (!c || c.status !== 'enabled' || c.isTrial) continue;
+      const fat = E.fatigue(ad);
+      if (fat < 0.8) push({ id: 'fatigue_' + ad.id + '_' + Math.round(fat * 10), cat: 'Keywords & Anzeigen', icon: '🥱', impact: 3, cid: c.id, title: `Creative auffrischen: ${ag.name}`, desc: `Die Anzeige hat ${U.fmt.pct(1 - fat, 0)} ihrer ursprünglichen Wirkung verloren (Ermüdung durch häufige Auslieferung). Überarbeiten Sie Texte, Bilder oder Videos.`, view: 'ads' });
+    }
+    for (const c of live) if (['display', 'demandgen', 'pmax'].includes(c.type) && !c.display.excludeApps && M.ind(S).goal === 'leads') push({ id: 'apps_' + c.id, cat: 'Gebote & Budgets', icon: '📵', impact: 2, cid: c.id, title: `Mobile-App-Inventar prüfen: ${c.name}`, desc: 'Ein großer Teil der Klicks stammt aus Mobile-Apps (oft versehentlich). Prüfen Sie die Placements und schließen Sie App-Inventar ggf. aus.', apply: (S) => { c.display.excludeApps = true; M.log(S, 'Kampagne', c.name, 'Mobile-App-Inventar ausgeschlossen'); } });
     // Assets
     const anySearch = live.some((c) => ['search', 'pmax'].includes(c.type));
     if (anySearch) {
@@ -175,6 +184,7 @@
     }
     const dIdeas = [`${cap(ag.name)} von ${brand}: Qualität, die überzeugt. Jetzt mehr erfahren.`, 'Tausende zufriedene Kunden vertrauen uns. Überzeugen Sie sich selbst.', 'Einfach online anfragen oder bestellen – wir kümmern uns um den Rest.'];
     for (const t of dIdeas) { if (ad.descriptions.length >= 4) break; if (!ad.descriptions.some((d) => d.t === t)) ad.descriptions.push({ t: t.slice(0, 90), pin: 0 }); }
+    ad.fat = Math.round((ad.fat || 0) * 0.5);
     M.reviewAd(S, ad, true);
     M.log(S, 'Anzeige', ag.name, 'Automatisch erstellte Assets hinzugefügt');
   };

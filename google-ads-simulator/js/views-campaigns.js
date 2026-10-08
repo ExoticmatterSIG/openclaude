@@ -83,13 +83,30 @@
       const pnl = UI.card('Unternehmensergebnis', `<dl class="kv">
         <dt>Umsatz (tatsächlich)</dt><dd>${f.eur(rev)}</dd><dt>Rohertrag</dt><dd>${f.eur(gross)}</dd><dt>Werbekosten</dt><dd>${f.eur(ads)}</dd><dt>Sonstige Kosten</dt><dd>${f.eur(other)}</dd>
         <dt><b>Gewinn nach Werbung</b></dt><dd><b class="${gross - ads - other >= 0 ? 'up' : 'down'}">${f.eur(gross - ads - other)}</b></dd>
+        <dt>Organische Markenconversions</dt><dd>${f.int(UI.m('org', 'all').rconv)} <span class="muted small">(ohne Klickkosten)</span></dd>
         <dt>Gemessener ROAS</dt><dd>${f.num2(accV.roas)} <span class="muted small">(laut Google Ads)</span></dd><dt>Tatsächlicher ROAS</dt><dd>${f.num2(accV.rroas)} <span class="muted small">(Messlücke ${f.pct(1 - U.div(accV.val, accV.rval), 0)})</span></dd>
       </dl>`, { tools: '<a data-act="nav" data-v="business">Details</a>' });
       const news = S.market.log.slice(0, 6).map((l) => `<li><span class="sev ${l.sev}"></span><span class="when">${U.fmtShort(U.dayToDate(S.startDate, l.day))}</span><span class="what"><b>${esc(l.name)}</b><div class="small muted">${esc(l.desc)}</div></span></li>`).join('');
+      const GL = G.GOALS;
+      let goalsCard = '';
+      if (GL && S.goals) {
+        const g = S.goals, prog = GL.progress(S);
+        const elapsed = U.clamp((S.day - g.periodStart) / Math.max(1, g.periodEnd - g.periodStart + 1), 0, 1);
+        const rowsG = g.targets.map((t) => {
+          const v = prog[t.id], met = GL.met(t, v);
+          const share = t.dir === 'min' ? U.clamp(U.div(v || 0, t.value), 0, 1) : (v === null ? 0 : met ? 1 : U.clamp(t.value / v, 0, 1));
+          const onTrack = t.dir === 'min' ? share >= elapsed * 0.95 : met;
+          return `<div style="margin-top:8px"><div class="small" style="display:flex;justify-content:space-between;gap:8px"><span>${U.esc(t.name)}</span><span class="${onTrack ? 'up' : 'down'}">${GL.fmt(t, v)} / ${t.dir === 'min' ? '≥' : '≤'} ${GL.fmt(t, t.value)}</span></div><div class="bar"><i style="width:${share * 100}%;background:${onTrack ? 'var(--good)' : 'var(--s3)'}"></i></div></div>`;
+        }).join('');
+        const ms = GL.monthSpend(S), mr = ms / g.monthBudget;
+        const dim = U.daysInMonth(M.today(S)), dom = M.today(S).getUTCDate();
+        goalsCard = UI.card('Zielvorgaben der Geschäftsleitung', `<div class="small muted">Zeitraum bis ${U.fmtDate(U.dayToDate(S.startDate, g.periodEnd), false)} · ${f.pct0(elapsed)} vergangen${g.history[0] ? ' · Letzte Note: <b>' + g.history[0].grade + '</b>' : ''}</div>${rowsG}
+          <div style="margin-top:12px"><div class="small" style="display:flex;justify-content:space-between"><span>Monatsbudget (Controlling)</span><span class="${mr > (dom - 1) / dim * 1.08 ? 'down' : 'up'}">${f.eur0(ms)} / ${f.eur0(g.monthBudget)}</span></div><div class="bar"><i style="width:${Math.min(100, mr * 100)}%;background:${mr > 1 ? 'var(--bad)' : 'var(--primary)'}"></i></div><div class="tiny muted">Hochrechnung Monatsende: ${f.eur0(ms / Math.max(1, dom - 1) * dim)}</div></div>`, { tools: '<a data-act="nav" data-v="business">Details</a>' });
+      }
       const newsCard = UI.card('Neuigkeiten aus dem Markt', news ? `<ul class="feed">${news}</ul>` : '<div class="empty">Noch ruhig im Markt …</div>', { flush: true, tools: '<a data-act="nav" data-v="events">Alle</a>' });
       return UI.head('Übersicht', `<button class="btn primary" data-act="newcampaign">＋ Neue Kampagne</button>`) + critHtml
         + `<div class="card"><div class="kpis">${tiles}</div><div class="bd" style="padding-top:12px">${chart}</div></div>`
-        + `<div class="grid g21"><div>${UI.card('Kampagnen', table, { flush: true, tools: '<a data-act="nav" data-v="campaigns">Alle Kampagnen</a>' })}${newsCard}</div><div>${scoreCard}${marketCard}${pnl}</div></div>`;
+        + `<div class="grid g21"><div>${UI.card('Kampagnen', table, { flush: true, tools: '<a data-act="nav" data-v="campaigns">Alle Kampagnen</a>' })}${newsCard}</div><div>${goalsCard}${scoreCard}${marketCard}${pnl}</div></div>`;
     },
   };
   ACT.kpichart = (el, d) => { const k = d.k; if (APP.chart[0] === k) return; APP.chart = [k, APP.chart[0]]; UI.renderMain(true); };
@@ -198,7 +215,7 @@
         return `<div class="adcard"><div class="meta">${UI.toggle(ad.status === 'enabled', 'togglead', `data-id="${ad.id}"`)} ${UI.pill(M.policyLabel(S, ad))} <span class="tag">${{ rsa: 'Responsive Suchanzeige', rda: 'Responsive Displayanzeige', video: 'Videoanzeige', assetgroup: 'Asset-Gruppe', app: 'App-Anzeige', dg: 'Demand-Gen-Anzeige' }[ad.type]}</span><span class="muted">${UI.campLink(c)} › ${esc(ag.name)}</span></div>
           ${UI.adPreview(ad)}
           ${ad.policy.reasons.length ? `<div class="small ${ad.policy.status === 'disapproved' ? 'down' : 'muted'}">⚠ ${ad.policy.reasons.map(esc).join(' · ')}</div>` : ''}
-          <div class="meta">Anzeigenstärke: ${UI.strength(st)}</div>
+          <div class="meta">Anzeigenstärke: ${UI.strength(st)} <span title="Creative-Ermüdung durch häufige Auslieferung. Auffrischen durch Bearbeiten." class="${E.fatigue(ad) < 0.8 ? 'down' : 'muted'}">· Wirkung ${f.pct0(E.fatigue(ad))}</span></div>
           <div class="meta mono">Impr. <b>${f.int(m.imp)}</b> · Klicks <b>${f.int(m.clk)}</b> · CTR <b>${f.pct(m.ctr)}</b> · Conv. <b>${f.num1(m.conv)}</b> · Kosten <b>${f.eur(m.cost)}</b></div>
           <div class="meta"><button class="btn sm" data-act="editad" data-id="${ad.id}">Bearbeiten</button>${ad.type === 'rsa' ? `<button class="btn sm ghost" data-act="autoassets" data-id="${ad.id}">✨ Assets generieren</button>` : ''}<button class="btn sm ghost danger" data-act="removead" data-id="${ad.id}">Entfernen</button></div></div>`;
       }).join('');
