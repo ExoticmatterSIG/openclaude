@@ -15,7 +15,7 @@ const check = (cond, msg) => { if (!cond) { failed++; console.error('FAIL:', msg
 const COURSES = GA.ACADEMY_CONTENT.COURSES;
 for (const c of COURSES) {
   check(c.lessons.length >= 2 && c.lessons.every((l) => l.body && l.diff && l.quiz && l.quiz.length), `${c.id}: Lektionen vollständig`);
-  for (const l of c.lessons) for (const q of l.quiz) check(q.c >= 0 && q.c < q.a.length, `${c.id}.${l.id}: Quiz-Lösung gültig`);
+  for (const l of c.lessons) for (const q of l.quiz) { check(q.c >= 0 && q.c < q.a.length, `${c.id}.${l.id}: Quiz-Lösung gültig`); check(Array.isArray(q.ex) && q.ex.length === q.a.length && q.ex.every(Boolean), `${c.id}.${l.id}: Erklärung je Antwort`); }
   if (!c.mission) continue;
   const S = GA.M.newGame({ industry: c.mission.industry, seed: 4242 + COURSES.indexOf(c), difficulty: 'normal', starter: true });
   c.mission.setup(S);

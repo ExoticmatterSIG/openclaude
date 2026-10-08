@@ -24,7 +24,9 @@
       case 'cpv': extra = n('cpv', 'Max. CPV (€ pro Aufruf)', b.cpv ?? 0.05); break;
       case 'tcpi': extra = n('tcpi', 'Ziel-Kosten pro Installation (€)', b.tcpi ?? 2.5); break;
     }
-    return `<div class="field"><span>Gebotsstrategie</span><select name="bidType" data-chg="bidtype">${opts}</select></div>${extra}`;
+    const hv = b.type === 'troas' ? (b.targetRoas ? b.targetRoas * 100 : 400) : b.type === 'maxvalue' ? (b.targetRoas ? b.targetRoas * 100 : null) : b.type === 'tcpa' ? (b.targetCpa ?? 30) : b.type === 'maxconv' ? b.targetCpa : null;
+    const help = G.GUIDE ? G.GUIDE.bidHelp(b.type, hv) : '';
+    return `<div class="field"><span>Gebotsstrategie</span><select name="bidType" data-chg="bidtype">${opts}</select></div>${extra}${help}`;
   }
   function readBid(root, type) {
     const b = { type, targetCpa: null, targetRoas: null, maxCpc: null, targetIs: 0.8, isLoc: 'top', cpm: null, cpv: null, tcpi: null };
@@ -207,7 +209,7 @@
     const root = document.getElementById('modal-root');
     const ctype = APP.draft && document.querySelector('.steps') ? APP.draft.type : APP._editType;
     const box = root.querySelector('#bidbox');
-    if (box) box.innerHTML = bidFields(ctype, { type: el.value, targetIs: 0.8, isLoc: 'top' }, ctype);
+    if (box) { box.innerHTML = bidFields(ctype, { type: el.value, targetIs: 0.8, isLoc: 'top' }, ctype); UI.annotate(box); }
   };
 
   FORMS.createCampaign = function (S, d) {

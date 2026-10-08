@@ -86,14 +86,25 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
 
 - **Erklärungen beim Überfahren:** Alle Kennzahlen und Fachbegriffe (Tabellenköpfe, Kacheln, Kennzahl-Listen) zeigen beim
   Überfahren – auf Touch-Geräten beim Antippen – eine kurze Erklärung (Glossar in `js/glossary.js`).
+- **„ⓘ Mehr erfahren":** Im Tooltip öffnet ein Button eine ausführliche Erklärung (Definition, Formel, Beispiel,
+  Einordnung, Hebel, Ihre aktuellen Zahlen inkl. Break-even, Unterschied zu Google Ads) – z. B. zu ROAS/Ziel-ROAS, CPA,
+  Anteil an Impressionen, Qualitätsfaktor (`js/glossary-detail.js`).
+- **Mehr Kennzahlen & Spaltenauswahl:** „▦ Spalten" in Kampagnen, Anzeigengruppen, Keywords und Suchbegriffen; zusätzlich
+  ROAS in %, Wert/Conv., Wert/Klick, Anteil Impr. oben/ganz oben, Deckungsbeitrag, echte Kosten/Conv., Messlücke.
+- **Ziel-ROAS-/Ziel-CPA-Rechner** im Gebotsstrategie-Formular: Ist-Wert in %, Break-even, Bedeutung des eingegebenen Werts
+  und Einordnung (zu streng, unter Break-even, realistisch).
+- **Geführte Hilfe:** Bei Problemen (abgelehnte Anzeigen mit konkreter Textstelle, schwache Anzeigenstärke, fehlende Assets,
+  Budget-/Zielbeschränkung, Tracking, niedriger QF, Merchant Center, leere Kasse) erscheinen Ursache, Schritt-für-Schritt-
+  Lösung und ein Direkt-Button. Unter Einstellungen → Lernhilfen lassen sich geführte Hilfe, Tooltips und „Mehr erfahren"
+  einzeln ausschalten (`js/guide.js`).
 - **Tipps & Beratung (kostenpflichtig):** Praxistipps zu Grundlagen, Konto-Analysen mit Ihren aktuellen Daten
   (Streuverluste in €, echter Deckungsbeitrag je Kampagne, Budget- vs. Rang-Engpass, QF-Diagnose, beste Zeiten, Geräte,
   Mitbewerber-Insiderinfos, Marktausblick, Psychologie-Check, im Bank-Modus Zinsberatung) und ein Premium-Strategie-Audit.
   Bezahlt wird sofort aus der Kasse; Analysen lassen sich gegen erneute Zahlung aktualisieren.
 - **📚 Akademie (Lernkurse):** 11 Kurse vom Einsteiger bis zum Profi – Auktion & Qualitätsfaktor, Kontostruktur & Keywords,
   Anzeigen & Richtlinien, Gebotsstrategien & Budget, Messung & Attribution, Zielgruppen & Ausrichtung, Shopping/PMax/Display,
-  Analyse & Tests, Psychologie & CRO, Bank-Modus sowie „Simulator vs. echtes Google Ads". Jede Lektion hat ein Quiz und einen
-  Hinweis **„Unterschied zum echten Google Ads"**, wo der Simulator vereinfacht, abweicht oder Zusatzinfos zeigt.
+  Analyse & Tests, Psychologie & CRO, Bank-Modus sowie „Simulator vs. echtes Google Ads". Jede Lektion hat ein Quiz mit Erklärung zu
+  jeder Antwortoption (warum richtig bzw. falsch) und einen Hinweis **„Unterschied zum echten Google Ads"**, wo der Simulator vereinfacht, abweicht oder Zusatzinfos zeigt.
   Jeder Kurs (außer dem letzten) endet mit einer **Praxisaufgabe** in einem eigenen Übungskonto (Sandbox), die automatisch
   geprüft wird. Die Akademie ist vom Startbildschirm und aus dem Spiel erreichbar, läuft unabhängig vom Spielstand
   (dieser wird pausiert und danach unverändert fortgesetzt; das Übungskonto wird nie gespeichert). Der Lernfortschritt liegt
@@ -135,6 +146,7 @@ js/engine.js     Simulation (Auktionen, Pacing, Smart Bidding, Wettbewerber, Mar
 js/recs.js       Empfehlungen & Unternehmensaktionen
 js/bank.js       Bank-Modus (Zinsen, EZB, Einlagenbuch, Funnel, Compliance)
 js/goals.js, psych.js, glossary.js, tips.js   Geschäftsleitung, Kaufverhalten, Erklärungen, Tipps
+js/glossary-detail.js, guide.js   Ausführliche Erklärungen, Ziel-ROAS-Rechner, geführte Problemhilfe
 js/academy-content.js, academy.js   Akademie: Kursinhalte und Lern-UI mit Sandbox
 js/ui.js, views-*.js, forms.js, charts.js, app.js   Oberfläche
 test/smoke.mjs   Engine-Test ohne Browser: node test/smoke.mjs

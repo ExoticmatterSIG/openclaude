@@ -102,18 +102,26 @@
     const ans = P.quiz[key] || {};
     const allRight = l.quiz.every((q, i) => ans[i] === q.c);
     const i = c.lessons.indexOf(l), next = c.lessons[i + 1];
+    const tried = (P.tried && P.tried[key]) || {};
     const quiz = l.quiz.map((q, qi) => {
-      const a = ans[qi];
-      return `<div class="acad-q"><div class="qq"><b>${qi + 1}.</b> ${esc(q.q)}</div>${q.a.map((t, ai) => {
-        const cls = a === undefined ? '' : ai === q.c && a === ai ? 'right' : a === ai ? 'wrong' : '';
-        return `<button class="acad-opt ${cls}" data-act="acadans" data-c="${c.id}" data-l="${l.id}" data-q="${qi}" data-a="${ai}">${esc(t)}</button>`;
-      }).join('')}${a !== undefined ? `<div class="callout ${a === q.c ? 'good' : 'bad'}" style="margin:8px 0 0">${a === q.c ? '✓ Richtig. ' : '✗ Leider falsch – versuchen Sie es noch einmal. '}${a === q.c ? esc(q.why) : ''}</div>` : ''}</div>`;
+      const a = ans[qi], solved = a === q.c, tr = tried[qi] || (a !== undefined ? [a] : []);
+      const opts = q.a.map((t, ai) => {
+        const isRight = ai === q.c, seen = solved || tr.includes(ai);
+        const cls = !seen ? '' : isRight ? 'right' : 'wrong';
+        const ex = q.ex && q.ex[ai] ? q.ex[ai] : isRight ? q.why : '';
+        return `<button class="acad-opt ${cls} ${a === ai ? 'chosen' : ''}" data-act="acadans" data-c="${c.id}" data-l="${l.id}" data-q="${qi}" data-a="${ai}" ${solved ? 'disabled' : ''}>${seen ? (isRight ? '✓ ' : '✗ ') : ''}${esc(t)}${seen && ex ? `<span class="acad-ex">${esc(ex)}</span>` : ''}</button>`;
+      }).join('');
+      const fb = a === undefined ? '' : solved
+        ? `<div class="callout good" style="margin:8px 0 0">✓ <b>Richtig!</b> ${esc(q.why)}${tr.length > 1 ? ' <span class="small">(im ' + tr.length + '. Versuch)</span>' : ''} Oben sehen Sie zu jeder Antwort, warum sie richtig oder falsch ist.</div>`
+        : `<div class="callout bad" style="margin:8px 0 0">✗ <b>Leider falsch.</b> Die Erklärung steht unter Ihrer Antwort – versuchen Sie es noch einmal.</div>`;
+      return `<div class="acad-q"><div class="qq"><b>${qi + 1}.</b> ${esc(q.q)}</div>${opts}${fb}</div>`;
     }).join('');
+    const quizReset = Object.keys(ans).length ? `<button class="btn sm" data-act="acadqreset" data-c="${c.id}" data-l="${l.id}">Quiz wiederholen</button>` : '';
     return head(esc(l.title), `<a data-act="acadcourse" data-c="">Akademie</a> › <a data-act="acadcourse" data-c="${c.id}">${esc(c.title)}</a> › Lektion ${i + 1}/${c.lessons.length}`) + `
       <div class="card"><div class="bd acad-body">${l.body}</div></div>
       ${l.widget === 'adrank' ? UI.card('🧮 Ad-Rank-Rechner', adrankWidget()) : ''}
       <div class="callout warn acad-diff"><b>⚠ Unterschied zum echten Google Ads</b><br>${l.diff}</div>
-      ${UI.card('Wissensquiz', quiz)}
+      ${UI.card('Wissensquiz', quiz, { tools: quizReset })}
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:8px">
         <button class="btn" data-act="acadcourse" data-c="${c.id}">← Kursübersicht</button>
         ${P.lessons[key] ? `<span class="pill good">✓ Lektion abgeschlossen</span>` : ''}
@@ -215,7 +223,10 @@
     acadans: (el, d) => {
       const P = A.progress(), key = d.c + '.' + d.l;
       const q = P.quiz[key] || (P.quiz[key] = {});
-      q[d.q] = +d.a; store();
+      q[d.q] = +d.a;
+      const T = P.tried || (P.tried = {}), t = T[key] || (T[key] = {}), arr = t[d.q] || (t[d.q] = []);
+      if (!arr.includes(+d.a)) arr.push(+d.a);
+      store();
       const y = window.scrollY; A.refresh(); window.scrollTo(0, y);
     },
     acaddone: (el, d) => {
@@ -228,6 +239,7 @@
       UI.toast(next ? 'Lektion abgeschlossen ✓' : 'Alle Lektionen abgeschlossen ✓' + (c.mission && !A.progress().missions[c.id] ? ' – jetzt die Praxisaufgabe!' : ''), 'good');
       A.refresh();
     },
+    acadqreset: (el, d) => { const P = A.progress(), key = d.c + '.' + d.l; delete P.quiz[key]; if (P.tried) delete P.tried[key]; store(); A.refresh(); },
     acadreset: () => UI.confirm('Lernfortschritt zurücksetzen?', 'Alle abgeschlossenen Lektionen, Quizantworten und Praxisaufgaben werden gelöscht. Ihr Spielstand bleibt erhalten.', () => { mem = { lessons: {}, quiz: {}, missions: {} }; store(); A.refresh(); }, 'Zurücksetzen'),
     acadmission: (el, d) => A.startMission(d.c),
     acadbrief: () => A.showBrief(),

@@ -62,6 +62,7 @@
       top: d(v[I.top], v[I.impw]), abs: d(v[I.abs], v[I.impw]), topIS: d(v[I.top], v[I.elig]), absIS: d(v[I.abs], v[I.elig]),
       views: v[I.views], viewRate: d(v[I.views], v[I.imp]), cpv: d(v[I.cost], v[I.views]), vconv: v[I.vconv], inv: v[I.inv], calls: v[I.calls],
       valPerConv: d(v[I.val], v[I.conv]), rroas: d(v[I.rval], v[I.cost]),
+      valPerClk: d(v[I.val], v[I.clk]), roasP: d(v[I.val], v[I.cost]), rcpa: d(v[I.cost], v[I.rconv]), gap: v[I.rconv] > 0 ? Math.max(0, 1 - v[I.conv] / v[I.rconv]) : 0,
     };
   };
 

@@ -40,7 +40,31 @@
     rconv: { l: 'Echte Conv. (Sim)', f: f.num1 },
     rval: { l: 'Echter Umsatz (Sim)', f: f.eur },
     rroas: { l: 'Echter ROAS (Sim)', f: f.num2 },
+    roasP: { l: 'ROAS in %', f: (x) => (x > 0 ? f.int(x * 100) + ' %' : '–') },
+    valPerConv: { l: 'Wert/Conv.', f: f.eur },
+    valPerClk: { l: 'Wert/Klick', f: f.eur },
+    topIS: { l: 'Anteil Impr. oben', f: (x) => f.pct(x) },
+    absIS: { l: 'Anteil Impr. ganz oben', f: (x) => f.pct(x) },
+    gp: { l: 'Deckungsbeitrag (gemessen)', f: f.eur },
+    rcpa: { l: 'Echte Kosten/Conv. (Sim)', f: f.eur },
+    rgp: { l: 'Echter Deckungsbeitrag (Sim)', f: f.eur },
+    gap: { l: 'Messlücke (Sim)', f: (x) => f.pct0(x) },
   });
+  // Spaltengruppen für die Spaltenauswahl
+  UI.MET_GROUPS = [
+    ['Leistung', ['imp', 'clk', 'ctr', 'cpc', 'cost', 'cpm']],
+    ['Conversions', ['conv', 'cvr', 'cpa', 'val', 'valPerConv', 'valPerClk', 'roas', 'roasP', 'aconv', 'vconv', 'calls']],
+    ['Wirtschaftlichkeit', ['gp']],
+    ['Wettbewerb', ['is', 'lostB', 'lostR', 'top', 'abs', 'topIS', 'absIS']],
+    ['Video', ['views', 'viewRate', 'cpv']],
+    ['Nur im Simulator', ['rconv', 'rval', 'rroas', 'rcpa', 'rgp', 'gap', 'inv']],
+  ];
+  // Kennzahlen, die die Branchenmarge brauchen, ergänzen
+  UI.ext = function (m) {
+    const mg = APP.S ? M.ind(APP.S).margin || 0 : 0;
+    m.gp = m.val * mg - m.cost; m.rgp = m.rval * mg - m.cost;
+    return m;
+  };
   UI.SUMMABLE = ['imp', 'clk', 'cost', 'conv', 'val', 'aconv', 'views', 'vconv', 'inv', 'calls', 'rconv', 'rval'];
 
   // ---------- Zeitraum ----------
@@ -55,7 +79,7 @@
   };
   UI.prevRng = function () { const [a, b] = UI.rng(); const len = b - a + 1; return [a - len, a - 1]; };
   UI.sum = (dim, id, r = UI.rng()) => E.sumRange(APP.S, dim, id, r[0], r[1]);
-  UI.m = (dim, id, r) => E.derive(UI.sum(dim, id, r));
+  UI.m = (dim, id, r) => UI.ext(E.derive(UI.sum(dim, id, r)));
   UI.rangeLabel = function () {
     const S = APP.S, [a, b] = UI.rng();
     if (b < a) return 'Noch keine Daten';
@@ -90,12 +114,29 @@
     if (o.totals) {
       foot = '<tfoot><tr>' + (o.select ? '<td></td>' : '') + cols.map((c, i) => `<td class="${c.num ? 'num' : ''}">${i === 0 ? (o.totalsLabel || 'Gesamt') : c.num && MET[c.k] ? MET[c.k].f(o.totals[c.k]) : ''}</td>`).join('') + '</tr></tfoot>';
     }
-    const search = o.search ? `<div class="filterbar"><input type="search" placeholder="Suchen …" data-inp="tsearch" data-t="${id}" value="${esc(APP.q[id] || '')}">${o.filters || ''}<span class="muted small">${total} Zeile(n)</span></div>` : '';
+    const search = o.search ? `<div class="filterbar"><input type="search" placeholder="Suchen …" data-inp="tsearch" data-t="${id}" value="${esc(APP.q[id] || '')}">${o.filters || ''}${UI._colDefaults[id] ? `<button class="btn sm" data-act="colpick" data-t="${id}" title="Kennzahl-Spalten auswählen">▦ Spalten</button>` : ''}<span class="muted small">${total} Zeile(n)</span></div>` : '';
     const selbar = o.select && sel.size ? `<div class="selbar"><b>${sel.size} ausgewählt</b> ${o.bulk || ''} <a data-act="selclear" data-t="${id}" style="margin-left:auto">Auswahl aufheben</a></div>` : '';
     if (!rows.length) return search + `<div class="empty">${o.empty || 'Keine Daten im ausgewählten Zeitraum.'}</div>`;
     return search + selbar + `<div class="tablewrap"><table class="t"><thead><tr>${head}</tr></thead><tbody>${body}</tbody>${foot}</table></div>` + (total > limit ? `<div class="muted small" style="padding:8px 16px">${total - limit} weitere Zeilen ausgeblendet</div>` : '');
   };
-  UI.totals = (vecs) => E.derive(vecs.reduce((a, v) => E.add(a, v), E.zero()));
+  UI.totals = (vecs) => UI.ext(E.derive(vecs.reduce((a, v) => E.add(a, v), E.zero())));
+  // Benutzereinstellungen (unabhängig vom Spielstand)
+  const PREF_KEY = 'gads-sim-prefs';
+  let prefs = null;
+  UI.prefs = function () {
+    if (prefs) return prefs;
+    try { prefs = JSON.parse(localStorage.getItem(PREF_KEY) || 'null'); } catch (e) { prefs = null; }
+    prefs = Object.assign({ guide: true, tips: true, tipMore: true, cols: {} }, prefs || {});
+    return prefs;
+  };
+  UI.setPref = function (k, v) { UI.prefs()[k] = v; try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) { /* nur im Speicher */ } };
+  // Metrik-Spalten mit Spaltenauswahl
+  UI._colDefaults = {};
+  UI.mcolsFor = function (id, defaults) {
+    UI._colDefaults[id] = defaults;
+    const sel = (UI.prefs().cols[id] || defaults).filter((k) => MET[k]);
+    return UI.mcols(sel);
+  };
 
   // ---------- Bausteine ----------
   UI.pill = ([txt, cls]) => `<span class="pill ${cls}">${esc(txt)}</span>`;
@@ -248,6 +289,8 @@
     const y = window.scrollY;
     try {
       main.innerHTML = (APP.sandbox && G.ACAD ? G.ACAD.banner() : '') + v.render();
+      const gp = G.GUIDE ? G.GUIDE.panel(APP.view) : '';
+      if (gp) { const ph = main.querySelector(':scope > .pagehead'); if (ph) ph.insertAdjacentHTML('afterend', gp); else main.insertAdjacentHTML('afterbegin', gp); }
     } catch (e) {
       console.error(e);
       main.innerHTML = `<div class="card"><div class="bd" style="padding:16px"><b>Fehler beim Rendern der Ansicht.</b><pre class="small">${esc(e.stack || e)}</pre></div></div>`;
@@ -258,32 +301,53 @@
   };
   // Erklärungen aus dem Glossar an Tabellenköpfe, Kacheln & Kennzahl-Listen hängen
   UI.annotate = function (root) {
-    if (!G.GLOSS) return;
-    for (const el of root.querySelectorAll('th, .lbl, dt, .stat .lbl, .kv dt')) {
+    if (!G.GLOSS || !UI.prefs().tips) return;
+    for (const el of root.querySelectorAll('th, .lbl, dt, .stat .lbl, .kv dt, .field > span:first-child')) {
       if (el.dataset.tip) continue;
       const sel = el.querySelector('select');
       const txt = sel ? sel.options[sel.selectedIndex].text : el.textContent;
       const tip = G.GLOSS.get(txt);
-      if (tip) { el.dataset.tip = tip; el.classList.add('has-tip'); }
+      if (tip) { el.dataset.tip = tip; el.dataset.tipKey = txt; el.classList.add('has-tip'); }
     }
   };
-  // Tooltip (Hover am Desktop, Antippen auf Touch-Geräten)
-  let tipEl = null, tipTimer = null;
+  // Tooltip (Hover am Desktop, Antippen auf Touch-Geräten) – mit „Mehr erfahren" zu ausführlichen Erklärungen
+  let tipEl = null, tipTimer = null, hideTimer = null, tipOwner = null;
+  const detailFor = (el) => (G.GLOSS_DETAIL && UI.prefs().tipMore ? G.GLOSS_DETAIL.get(el.dataset.tipKey || el.textContent) : null);
   function showTip(el) {
-    if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'tipbox'; document.body.appendChild(tipEl); }
-    tipEl.textContent = el.dataset.tip;
+    if (!tipEl) {
+      tipEl = document.createElement('div'); tipEl.className = 'tipbox'; document.body.appendChild(tipEl);
+      tipEl.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+      tipEl.addEventListener('mouseleave', () => { if (!touch) scheduleHide(); });
+    }
+    clearTimeout(hideTimer);
+    if (tipOwner === el && tipEl.style.display === 'block') return;
+    tipOwner = el;
+    const det = detailFor(el);
+    tipEl.innerHTML = esc(el.dataset.tip) + (det ? `<button class="tipmore" data-act="glossmore" data-id="${det.id}">ⓘ Mehr erfahren</button>` : '');
     tipEl.style.display = 'block';
     const r = el.getBoundingClientRect(), w = Math.min(320, window.innerWidth - 24);
     tipEl.style.maxWidth = w + 'px';
     const left = Math.max(12, Math.min(window.innerWidth - tipEl.offsetWidth - 12, r.left + r.width / 2 - tipEl.offsetWidth / 2));
-    let top = r.bottom + 8;
-    if (top + tipEl.offsetHeight > window.innerHeight - 8) top = r.top - tipEl.offsetHeight - 8;
+    let top = r.bottom + 6;
+    if (top + tipEl.offsetHeight > window.innerHeight - 8) top = r.top - tipEl.offsetHeight - 6;
     tipEl.style.left = left + 'px'; tipEl.style.top = top + 'px';
   }
-  function hideTip() { if (tipEl) tipEl.style.display = 'none'; }
+  function hideTip() { if (tipEl) tipEl.style.display = 'none'; tipOwner = null; }
+  function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(hideTip, 350); }
+  UI.hideTip = hideTip;
   const touch = window.matchMedia && window.matchMedia('(hover: none)').matches;
-  document.addEventListener('mouseover', (ev) => { if (touch) return; const el = ev.target.closest && ev.target.closest('[data-tip]'); if (el) showTip(el); else hideTip(); });
-  document.addEventListener('click', (ev) => { if (!touch) return; const el = ev.target.closest && ev.target.closest('[data-tip]'); if (el) { showTip(el); clearTimeout(tipTimer); tipTimer = setTimeout(hideTip, 4500); } else hideTip(); }, true);
+  document.addEventListener('mouseover', (ev) => {
+    if (touch) return;
+    if (tipEl && tipEl.contains(ev.target)) return;
+    const el = ev.target.closest && ev.target.closest('[data-tip]');
+    if (el) showTip(el); else if (tipOwner) scheduleHide();
+  });
+  document.addEventListener('click', (ev) => {
+    if (!touch) return;
+    if (tipEl && tipEl.contains(ev.target)) return;
+    const el = ev.target.closest && ev.target.closest('[data-tip]');
+    if (el) { showTip(el); clearTimeout(tipTimer); tipTimer = setTimeout(hideTip, 6000); } else hideTip();
+  }, true);
   window.addEventListener('scroll', hideTip, { passive: true });
   UI.render = function (force) {
     if (!APP.S) return;
@@ -341,6 +405,23 @@
     chg_range: (el) => { APP.range = el.value; UI.render(true); },
     inp_tsearch: (el, d) => { APP.q[d.t] = el.value; UI.renderMain(true); const n = document.querySelector(`[data-inp="tsearch"][data-t="${d.t}"]`); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } },
     tab: (el, d) => { APP.tab[d.g] = d.v; UI.renderMain(true); },
+    colpick: (el, d) => {
+      const id = d.t, def = UI._colDefaults[id] || [], cur = UI.prefs().cols[id] || def;
+      const body = `<p class="small muted" style="margin-top:0">Wählen Sie, welche Kennzahlen als Spalten erscheinen. Die Reihenfolge folgt Ihrer Auswahl; die Einstellung gilt für alle Spielstände. Fahren Sie über einen Spaltenkopf, um die Kennzahl erklärt zu bekommen.</p>`
+        + UI.MET_GROUPS.map(([g, keys]) => `<h3 style="margin:12px 0 6px;font-size:14px">${g}</h3><div class="colpick">${keys.map((k) => `<label class="chk" ${G.GLOSS && G.GLOSS.get(MET[k].l) ? `title="${esc(G.GLOSS.get(MET[k].l))}"` : ''}><input type="checkbox" name="col_${k}" ${cur.includes(k) ? 'checked' : ''}> ${esc(MET[k].l)}</label>`).join('')}</div>`).join('');
+      UI.modal('Spalten anpassen', body, {
+        footer: `<button class="btn" data-act="colreset" data-t="${id}">Standard</button><button class="btn" data-act="mclose">Abbrechen</button><button class="btn primary" data-act="msave">Übernehmen</button>`,
+        onSave: () => {
+          const all = UI.MET_GROUPS.flatMap((x) => x[1]);
+          const chosen = all.filter((k) => UI.val('col_' + k));
+          const keep = cur.filter((k) => chosen.includes(k));
+          const next = keep.concat(chosen.filter((k) => !keep.includes(k)));
+          if (!next.length) { UI.toast('Mindestens eine Kennzahl auswählen', 'bad'); return false; }
+          UI.setPref('cols', { ...UI.prefs().cols, [id]: next });
+        },
+      });
+    },
+    colreset: (el, d) => { const c = { ...UI.prefs().cols }; delete c[d.t]; UI.setPref('cols', c); UI.closeModal(); UI.render(true); },
   });
 
   G.UI = UI;

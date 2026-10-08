@@ -31,6 +31,19 @@
     'echte conv. (sim)': 'Nur im Simulator sichtbar: tatsächliche Abschlüsse inkl. nicht gemessener (Cookie-Ablehnung, Tracking-Lücken). Die Differenz zu „Conversions" ist Ihre Messlücke.',
     'echter umsatz (sim)': 'Nur im Simulator sichtbar: tatsächlicher Umsatz aller Abschlüsse aus Ihren Anzeigen.',
     'echter roas (sim)': 'Nur im Simulator: echter Umsatz ÷ Kosten. Zeigt die Wirtschaftlichkeit unabhängig von Messlücken.',
+    'roas in %': 'Derselbe ROAS wie „Conv.-Wert/Kosten", nur in Prozent: 3,50 = 350 %. So geben Sie ihn auch beim Ziel-ROAS ein.',
+    'wert/conv.': 'Durchschnittlicher Wert je Conversion (z. B. Warenkorb) = Conv.-Wert ÷ Conversions.',
+    'wert/klick': 'Durchschnittlicher Conversion-Wert je Klick = Conv.-Wert ÷ Klicks. Mit dem Ø CPC vergleichen.',
+    'anteil impr. oben': 'Impressionen oben ÷ mögliche Impressionen (nicht ÷ Ihre Impressionen wie bei „Impr. (oben) %").',
+    'anteil impr. ganz oben': 'Impressionen auf Position 1 ÷ mögliche Impressionen.',
+    'deckungsbeitrag (gemessen)': 'Conv.-Wert × Marge − Kosten. Positiv = die Kampagne verdient nach Wareneinsatz und Werbung Geld.',
+    'echte kosten/conv. (sim)': 'Nur im Simulator: Kosten ÷ echte Conversions (inkl. nicht gemessener).',
+    'echter deckungsbeitrag (sim)': 'Nur im Simulator: echter Umsatz × Marge − Kosten.',
+    'messlücke (sim)': 'Nur im Simulator: Anteil echter Conversions, die Google nicht erfasst hat (Cookie-Ablehnung, Tracking-Fehler).',
+    'ziel-roas (%)': 'Angestrebter Conversion-Wert je Euro Werbung, in Prozent: 400 % = 4 € Umsatz je 1 € Kosten. Höher = vorsichtiger, weniger Volumen.',
+    'ziel-roas (optional, %)': 'Optionaler Mindest-ROAS für „Conversion-Wert maximieren", in Prozent (400 % = 4 € je 1 €).',
+    'ziel-cpa (€)': 'Angestrebte durchschnittliche Kosten pro Conversion. Nahe dem aktuellen CPA starten.',
+    'ziel-cpa (optional, €)': 'Optionale Obergrenze für die Ø Kosten pro Conversion bei „Conversions maximieren".',
     // Keywords & Qualität
     'qf': 'Qualitätsfaktor (1–10): Googles Einschätzung von erwarteter CTR, Anzeigenrelevanz und Landingpage. Höherer QF = besserer Ad Rank und günstigere Klicks.',
     'erw. ctr': 'Erwartete Klickrate: Wie wahrscheinlich ein Klick ist – verglichen mit anderen Werbetreibenden auf derselben Position. Stärkster QF-Bestandteil.',
@@ -90,6 +103,6 @@
   // Synonyme für Varianten in den Ansichten
   const ALIAS = { 'zinsüberschuss + gebühren': 'Zinserträge gegenüber der Refinanzierungsalternative plus Kontogebühren.', 'konten eröffnet': 'Tatsächlich eröffnete Konten nach Antrag, KYC-Prüfung und Legitimation.', 'anträge abgeschickt': 'Abgeschickte Anträge – inklusive Privatkunden, die später abgelehnt werden.' };
   const MAP = Object.assign({}, E, ALIAS);
-  const norm = (s) => String(s || '').toLowerCase().replace(/[▲▼]/g, '').replace(/\s+/g, ' ').trim();
-  G.GLOSS = { get: (label) => MAP[norm(label)] || null, all: MAP };
+  const norm = (s) => String(s || '').toLowerCase().replace(/[▲▼ⓘ]/g, '').replace(/\s+/g, ' ').trim();
+  G.GLOSS = { get: (label) => MAP[norm(label)] || (G.GLOSS_DETAIL && G.GLOSS_DETAIL.get(label) ? G.GLOSS_DETAIL.get(label).what.replace(/<[^>]+>/g, '') : null), all: MAP };
 })();

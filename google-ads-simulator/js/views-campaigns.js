@@ -4,8 +4,8 @@
   const U = G.U, D = G.D, M = G.M, E = G.E, C = G.C, R = G.R, UI = G.UI, V = G.V, ACT = G.ACT, APP = G.APP;
   const f = U.fmt, esc = U.esc, I = E.I;
 
-  const KPI_CHOICES = ['clk', 'imp', 'ctr', 'cpc', 'cost', 'conv', 'cvr', 'cpa', 'val', 'roas', 'aconv', 'is', 'views'];
-  const INVERT = new Set(['cpc', 'cost', 'cpa']);
+  const KPI_CHOICES = ['clk', 'imp', 'ctr', 'cpc', 'cost', 'conv', 'cvr', 'cpa', 'val', 'valPerConv', 'roas', 'roasP', 'gp', 'aconv', 'is', 'lostB', 'lostR', 'topIS', 'views', 'rconv', 'rroas', 'rgp', 'gap'];
+  const INVERT = new Set(['cpc', 'cost', 'cpa', 'lostB', 'lostR', 'gap', 'rcpa']);
 
   // Tagesreihe für Konto oder gewählte Kampagne
   UI.dailySeries = function (keys, range = UI.rng()) {
@@ -16,7 +16,7 @@
     for (let d = a; d <= b; d++) {
       const v = E.zero();
       for (const [dim, id] of ids) { const s = S.stats[dim] && S.stats[dim][id] && S.stats[dim][id][d]; if (s) E.add(v, s); }
-      vecs.push(E.derive(v));
+      vecs.push(UI.ext(E.derive(v)));
     }
     const labels = [], tips = [];
     for (let d = a; d <= b; d++) { const dt = U.dayToDate(S.startDate, d); labels.push(U.fmtShort(dt)); tips.push(U.fmtDate(dt)); }
@@ -151,7 +151,7 @@
         { k: 'budget', l: 'Budget', num: true, f: (r) => `<input class="inline" data-chg="budget" data-id="${r.c.id}" value="${r.c.budget.toFixed(2)}"> €`, sort: (r) => r.c.budget },
         { k: 'status', l: 'Status', f: (r) => UI.pill(M.campaignStatus(S, r.c)) + (r.c.learnUntil > S.day ? `<div class="tiny muted">${esc(r.c.learnReason || '')} · noch ${r.c.learnUntil - S.day} T</div>` : ''), sort: (r) => M.campaignStatus(S, r.c)[0] },
         { k: 'bid', l: 'Gebotsstrategie', f: (r) => `<a data-act="editcampaign" data-id="${r.c.id}">${esc(M.bidLabel(r.c))}</a>`, sort: (r) => r.c.bidStrategy.type },
-        ...UI.mcols(['imp', 'clk', 'ctr', 'cpc', 'cost', 'conv', 'cvr', 'cpa', 'val', 'roas', 'is', 'lostB', 'lostR']),
+        ...UI.mcolsFor('camps', ['imp', 'clk', 'ctr', 'cpc', 'cost', 'conv', 'cvr', 'cpa', 'val', 'roas', 'is', 'lostB', 'lostR']),
         { k: 'act', l: '', nosort: true, f: (r) => `<button class="btn sm ghost" data-act="editcampaign" data-id="${r.c.id}" title="Einstellungen">⚙</button><button class="btn sm ghost" data-act="copycampaign" data-id="${r.c.id}" title="Kopieren">⧉</button><button class="btn sm ghost danger" data-act="removecampaign" data-id="${r.c.id}" title="Entfernen">🗑</button>` },
       ];
       const filters = `<select data-chg="camptype"><option value="">Alle Typen</option>${Object.entries(D.CAMPAIGN_TYPES).map(([k, v]) => `<option value="${k}" ${k === typeF ? 'selected' : ''}>${v.name}</option>`).join('')}</select>`;
@@ -182,7 +182,7 @@
         { k: 'camp', l: 'Kampagne', f: (r) => UI.campLink(r.c), sort: (r) => r.c.name },
         { k: 'bid', l: 'Standard-Max.-CPC', num: true, f: (r) => (['manual', 'maxclicks'].includes(r.c.bidStrategy.type) || ['search', 'shopping'].includes(r.c.type) && !D.BID_STRATEGIES[r.c.bidStrategy.type].smart ? `<input class="inline" data-chg="agbid" data-id="${r.ag.id}" value="${r.ag.defaultBid.toFixed(2)}"> €` : '<span class="muted small">automatisch</span>'), sort: (r) => r.ag.defaultBid },
         { k: 'lp', l: 'Landingpage', f: (r) => `<span class="small" title="PageSpeed ${r.ag.lp.speed}/100 · Relevanz ${Math.round(r.ag.lp.relevance * 100)} %">⚡${r.ag.lp.speed} · 🎯${Math.round(r.ag.lp.relevance * 100)} % ${r.ag.lp.mobile ? '📱' : ''}</span>`, sort: (r) => M.lpScore(S, r.ag) },
-        ...UI.mcols(['imp', 'clk', 'ctr', 'cpc', 'cost', 'conv', 'cvr', 'cpa', 'roas']),
+        ...UI.mcolsFor('ags', ['imp', 'clk', 'ctr', 'cpc', 'cost', 'conv', 'cvr', 'cpa', 'roas']),
         { k: 'act', l: '', nosort: true, f: (r) => `<button class="btn sm ghost" data-act="editag" data-id="${r.ag.id}">⚙</button><button class="btn sm ghost danger" data-act="removeag" data-id="${r.ag.id}">🗑</button>` },
       ];
       return UI.head('Anzeigengruppen', '<button class="btn primary" data-act="newag">＋ Anzeigengruppe</button>')
@@ -292,7 +292,7 @@
         { k: 'qlp', l: 'LP-Erfahrung', f: (r) => lvl(r.qs.lp), sort: (r) => r.qs.lL },
         { k: 'fp', l: 'Gebot 1. Seite', num: true, f: (r) => (r.kw.rt && r.kw.rt.firstPage ? f.eur(r.kw.rt.firstPage) : '–'), sort: (r) => (r.kw.rt && r.kw.rt.firstPage) || 0 },
         { k: 'tp', l: 'Gebot oben', num: true, f: (r) => (r.kw.rt && r.kw.rt.topPage ? f.eur(r.kw.rt.topPage) : '–'), sort: (r) => (r.kw.rt && r.kw.rt.topPage) || 0 },
-        ...UI.mcols(['imp', 'clk', 'ctr', 'cpc', 'cost', 'conv', 'cvr', 'cpa', 'top', 'abs']),
+        ...UI.mcolsFor('kws', ['imp', 'clk', 'ctr', 'cpc', 'cost', 'conv', 'cvr', 'cpa', 'top', 'abs']),
         { k: 'act', l: '', nosort: true, f: (r) => `<button class="btn sm ghost danger" data-act="removekw" data-id="${r.kw.id}">🗑</button>` },
       ];
       return UI.head('Keywords', '<button class="btn primary" data-act="newkw">＋ Keywords</button>', { agScope: true })
@@ -350,7 +350,7 @@
         { k: 'mt', l: 'Übereinstimmung', f: (r) => (r.kw ? (U.norm(r.q.text) === r.kw.text ? 'Genau passend' : r.kw.match === 'exact' ? 'Genau passend (ähnl. Variante)' : UI.matchName[r.kw.match]) : '–'), sort: (r) => (r.kw ? r.kw.match : '') },
         { k: 'camp', l: 'Kampagne', f: (r) => UI.campLink(r.c), sort: (r) => r.c.name },
         { k: 'intent', l: 'Kaufabsicht (Sim)', f: (r) => `<span class="bar" title="${f.num2(r.q.intent)}"><i style="width:${Math.min(100, r.q.intent * 50)}%;background:${r.q.intent >= 1 ? 'var(--good)' : r.q.intent >= 0.5 ? 'var(--s3)' : 'var(--bad)'}"></i></span>`, sort: (r) => r.q.intent },
-        ...UI.mcols(['imp', 'clk', 'ctr', 'cpc', 'cost', 'conv', 'cvr', 'cpa']),
+        ...UI.mcolsFor('st', ['imp', 'clk', 'ctr', 'cpc', 'cost', 'conv', 'cvr', 'cpa']),
       ];
       return UI.head('Suchbegriffe')
         + '<div class="callout">Hier sehen Sie, bei welchen tatsächlichen Suchanfragen Ihre Anzeigen ausgeliefert wurden. Fügen Sie gute Suchbegriffe als Keywords hinzu und schließen Sie irrelevante aus. Die Spalte „Kaufabsicht" ist ein Simulations-Einblick, den es im echten Google Ads nicht gibt.</div>'
