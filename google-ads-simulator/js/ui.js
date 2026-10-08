@@ -153,6 +153,7 @@
     const first = root.querySelector('input:not([type=checkbox]),select,textarea');
     if (first && !o.noFocus) setTimeout(() => first.focus(), 30);
     C.mount(root);
+    UI.annotate(root);
     return root.querySelector('.modal');
   };
   UI.closeModal = function () {
@@ -186,7 +187,7 @@
 
   // ---------- Navigation ----------
   const NAV = [
-    ['', [['overview', '🏠', 'Übersicht'], ['recs', '💡', 'Empfehlungen']]],
+    ['', [['overview', '🏠', 'Übersicht'], ['recs', '💡', 'Empfehlungen'], ['tips', '🎓', 'Tipps & Beratung']]],
     ['Kampagnen', [['campaigns', '📣', 'Kampagnen'], ['adgroups', '🗂️', 'Anzeigengruppen'], ['ads', '📝', 'Anzeigen'], ['assets', '🧩', 'Assets'], ['keywords', '🔑', 'Keywords'], ['searchterms', '🔎', 'Suchbegriffe'], ['negatives', '🚫', 'Ausschließende Keywords']]],
     ['Ausrichtung', [['audiences', '👥', 'Zielgruppen'], ['demographics', '🎂', 'Demografie'], ['locations', '📍', 'Standorte'], ['schedule', '🕒', 'Werbezeitplaner'], ['devices', '📱', 'Geräte']]],
     ['Statistiken & Markt', [['auction', '⚔️', 'Auktionsdaten'], ['market', '📈', 'Markt & Wettbewerb'], ['events', '📰', 'News & Ereignisse'], ['pmaxinsights', '⚡', 'PMax-Kanalbericht']]],
@@ -252,8 +253,38 @@
       main.innerHTML = `<div class="card"><div class="bd" style="padding:16px"><b>Fehler beim Rendern der Ansicht.</b><pre class="small">${esc(e.stack || e)}</pre></div></div>`;
     }
     C.mount(main);
+    UI.annotate(main);
     if (!force) window.scrollTo(0, y);
   };
+  // Erklärungen aus dem Glossar an Tabellenköpfe, Kacheln & Kennzahl-Listen hängen
+  UI.annotate = function (root) {
+    if (!G.GLOSS) return;
+    for (const el of root.querySelectorAll('th, .lbl, dt, .stat .lbl, .kv dt')) {
+      if (el.dataset.tip) continue;
+      const sel = el.querySelector('select');
+      const txt = sel ? sel.options[sel.selectedIndex].text : el.textContent;
+      const tip = G.GLOSS.get(txt);
+      if (tip) { el.dataset.tip = tip; el.classList.add('has-tip'); }
+    }
+  };
+  // Tooltip (Hover am Desktop, Antippen auf Touch-Geräten)
+  let tipEl = null, tipTimer = null;
+  function showTip(el) {
+    if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'tipbox'; document.body.appendChild(tipEl); }
+    tipEl.textContent = el.dataset.tip;
+    tipEl.style.display = 'block';
+    const r = el.getBoundingClientRect(), w = Math.min(320, window.innerWidth - 24);
+    tipEl.style.maxWidth = w + 'px';
+    const left = Math.max(12, Math.min(window.innerWidth - tipEl.offsetWidth - 12, r.left + r.width / 2 - tipEl.offsetWidth / 2));
+    let top = r.bottom + 8;
+    if (top + tipEl.offsetHeight > window.innerHeight - 8) top = r.top - tipEl.offsetHeight - 8;
+    tipEl.style.left = left + 'px'; tipEl.style.top = top + 'px';
+  }
+  function hideTip() { if (tipEl) tipEl.style.display = 'none'; }
+  const touch = window.matchMedia && window.matchMedia('(hover: none)').matches;
+  document.addEventListener('mouseover', (ev) => { if (touch) return; const el = ev.target.closest && ev.target.closest('[data-tip]'); if (el) showTip(el); else hideTip(); });
+  document.addEventListener('click', (ev) => { if (!touch) return; const el = ev.target.closest && ev.target.closest('[data-tip]'); if (el) { showTip(el); clearTimeout(tipTimer); tipTimer = setTimeout(hideTip, 4500); } else hideTip(); }, true);
+  window.addEventListener('scroll', hideTip, { passive: true });
   UI.render = function (force) {
     if (!APP.S) return;
     try { APP._recs = R.compute(APP.S); } catch (e) { console.error(e); APP._recs = []; }

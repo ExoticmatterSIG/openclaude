@@ -82,6 +82,15 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
 - **Kundenwert:** Wiederkäufe bzw. Verlängerungen bringen später Umsatz ohne Werbekosten.
 - **Zahltag-Effekt** im Konsumbereich, **Rückkehrer** (Anzeigenklicks führen später zu Markensuchen) und organische Markenconversions.
 
+## Lernhilfen
+
+- **Erklärungen beim Überfahren:** Alle Kennzahlen und Fachbegriffe (Tabellenköpfe, Kacheln, Kennzahl-Listen) zeigen beim
+  Überfahren – auf Touch-Geräten beim Antippen – eine kurze Erklärung (Glossar in `js/glossary.js`).
+- **Tipps & Beratung (kostenpflichtig):** Praxistipps zu Grundlagen, Konto-Analysen mit Ihren aktuellen Daten
+  (Streuverluste in €, echter Deckungsbeitrag je Kampagne, Budget- vs. Rang-Engpass, QF-Diagnose, beste Zeiten, Geräte,
+  Mitbewerber-Insiderinfos, Marktausblick, Psychologie-Check, im Bank-Modus Zinsberatung) und ein Premium-Strategie-Audit.
+  Bezahlt wird sofort aus der Kasse; Analysen lassen sich gegen erneute Zahlung aktualisieren.
+
 ## Bank-Modus: Passivgeschäft Geschäftskunden (VW Bank)
 
 Eigene Branche mit realistischen Mechaniken für SEA im Einlagengeschäft:

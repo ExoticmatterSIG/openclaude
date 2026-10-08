@@ -14,6 +14,7 @@
 
   V.conditions = {
     render() {
+      if (!APP.S.bank) return UI.head('Konditionen & Zinsen', '', { noScope: true, noRange: true }) + '<div class="card"><div class="empty">Diese Ansicht gibt es nur im Bank-Modus.</div></div>';
       const S = APP.S, b = S.bank, o = b.own, m = B.market(S), mult = B.cvrMults(S);
       const [a, z] = UI.rng();
       const fl = B.emptyFlow();
