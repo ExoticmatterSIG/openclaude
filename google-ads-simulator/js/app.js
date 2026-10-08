@@ -207,6 +207,7 @@
         APP.S = APPX.deserialize(await kvGet(SAVE_KEY));
         document.getElementById('sidenav').style.display = '';
         APP.alertsSeen = APP.S.day;
+        if (G.GOALS && APP.S.goals) G.GOALS.enforce(APP.S); // ältere Spielstände reparieren
         UI.render(true);
         APPX.showGameOver();
       } catch (e) { UI.toast('Spielstand konnte nicht geladen werden: ' + e.message, 'bad'); }

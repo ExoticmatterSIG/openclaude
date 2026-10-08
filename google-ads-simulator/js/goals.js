@@ -43,9 +43,10 @@
       ];
     }
     for (const t of g.targets) {
+      t.capped = false;
       // Planung auf Basis des Vorquartals: Ist + 8 % Wachstum (die Messlatte steigt mit dem Erfolg)
       const last = g.lastActual && g.lastActual[t.id];
-      if (last !== undefined && last !== null && SCALABLE.has(t.id) && last > 0) t.value = Math.max(t.value, last * len * 1.08);
+      if (last !== undefined && last !== null && SCALABLE.has(t.id) && last > 0) t.value = Math.max(t.value, last * len * 1.08 * U.clamp(g.monthBudget / (g.lastBudget || g.monthBudget), 0.5, 1.5));
       t.base = t.value;
       if (SCALABLE.has(t.id)) t.value = GL.round(t.base * (g.mkt || 1));
     }
@@ -60,6 +61,70 @@
     const ind = M.ind(S);
     const season = U.avg(h, (x) => ind.season[U.dayToDate(S.startDate, x.day).getUTCMonth()]);
     return U.clamp(U.avg(h, (x) => x.demand) * Math.pow(season, 0.7), 0.7, 1.35);
+  };
+
+  // ---------- Machbarkeit: Ziele an Budget & erreichbare Effizienz koppeln ----------
+  GL.initBudget = function (S) {
+    const ind = M.ind(S), base = M.STARTER_BUDGET[ind.id] || 100;
+    return Math.round((ind.bank ? 14000 : base * 30.4 * 1.6) / 100) * 100;
+  };
+  // Erreichbare Menge pro Werbe-Euro: beobachtete Effizienz (60 Tage), mind. 60 % des Branchen-Benchmarks
+  GL.efficiency = function (S) {
+    const ind = M.ind(S), a = Math.max(0, S.day - 60), b = S.day - 1;
+    const cost = E.sumRange(S, 'acct', 'all', a, b)[E.I.cost];
+    const out = {};
+    if (S.bank) {
+      let vol = 0, accts = 0;
+      for (let d = a; d <= b; d++) { const f = S.bank.flows[d]; if (f) { vol += f.inTG + f.inFG; accts += f.nGiro + f.nVisa; } }
+      out.vol = Math.max(cost > 500 ? vol / cost : 0, 400); // Benchmark: 2,50 € je 1.000 € Neuvolumen
+      out.accts = Math.max(cost > 500 ? accts / cost : 0, 1 / 350);
+    } else {
+      let conv = 0, gross = 0, ads = 0, other = 0;
+      for (let d = a; d <= b; d++) { const p = S.pnl[d]; if (p) { conv += p.conv; gross += p.gross; ads += p.ads; other += p.other; } }
+      const fixed = (S.company.fixedPerDay || 0) * (b - a + 1);
+      const bench = 1 / (ind.aov * ind.margin * 0.45);
+      out.conv = Math.max(cost > 500 ? conv / cost : 0, bench * 0.6);
+      out.profit = Math.max(cost > 500 ? (gross - ads - (other - fixed)) / cost : 0, 0.3);
+    }
+    return out;
+  };
+  // Täglich: Budgetuntergrenze sichern und Mengenziele auf das Erreichbare begrenzen (+20 % Stretch)
+  GL.enforce = function (S) {
+    const g = S.goals; if (!g || !g.targets) return;
+    g.initBudget = g.initBudget || GL.initBudget(S);
+    g.monthBudget = Math.max(g.monthBudget, Math.round((g.initBudget * 0.5) / 100) * 100);
+    const eff = GL.efficiency(S), prog = GL.progress(S);
+    const remaining = Math.max(0, g.periodEnd - S.day + 1);
+    const daily = g.monthBudget / 30.4;
+    // Verhältnisziele: höchstens 20 % besser als der aktuelle 60-Tage-Wert (mindestens kostendeckend)
+    const cur = GL.progress(S, Math.max(0, S.day - 60), S.day - 1);
+    const be = 1 / M.ind(S).margin;
+    for (const t of g.targets) {
+      if (eff[t.id]) continue;
+      const v = cur[t.id];
+      if (v === null || v === undefined || S.day < 30) continue;
+      if (t.dir === 'max') { const lim = +(v * 0.8).toFixed(2); if (t.value < lim) { t.value = lim; t.capped = true; } }
+      else { const lim = +Math.max(v * 1.2, be * 1.05).toFixed(2); if (t.value > lim) { t.value = lim; t.capped = true; } }
+    }
+    for (const t of g.targets) {
+      if (!eff[t.id] || t.dir !== 'min') continue;
+      const cap = GL.round((prog[t.id] || 0) + eff[t.id] * 1.2 * daily * remaining);
+      if (t.value > cap) { t.value = Math.max(cap, 1); t.capped = true; } else t.capped = false;
+    }
+  };
+  // Was müsste ab heute je 100 € Budget erreicht werden?
+  GL.required = function (S, t) {
+    const g = S.goals, prog = GL.progress(S), eff = GL.efficiency(S);
+    if (!eff[t.id] || t.dir !== 'min') return null;
+    const remaining = Math.max(1, g.periodEnd - S.day + 1);
+    const need = Math.max(0, t.value - (prog[t.id] || 0)) / ((g.monthBudget / 30.4) * remaining);
+    const a = Math.max(0, S.day - 30), cost = E.sumRange(S, 'acct', 'all', a, S.day - 1)[E.I.cost];
+    let cur = null;
+    if (cost > 200) {
+      if (S.bank) { let v = 0, n = 0; for (let d = a; d < S.day; d++) { const f = S.bank.flows[d]; if (f) { v += f.inTG + f.inFG; n += f.nGiro + f.nVisa; } } cur = t.id === 'vol' ? v / cost : n / cost; }
+      else { let c = 0, gr = 0, ad = 0, ot = 0; for (let d = a; d < S.day; d++) { const p = S.pnl[d]; if (p) { c += p.conv; gr += p.gross; ad += p.ads; ot += p.other; } } cur = t.id === 'conv' ? c / cost : (gr - ad - (ot - (S.company.fixedPerDay || 0) * (S.day - a))) / cost; }
+    }
+    return { need: need * 100, cur: cur === null ? null : cur * 100 };
   };
 
   // ---------- Vertrauen der Geschäftsleitung & Sanktionen ----------
@@ -155,8 +220,8 @@
   }
 
   // Aktuelle Werte im Zielzeitraum
-  GL.progress = function (S) {
-    const g = S.goals, a = g.periodStart, b = Math.min(S.day - 1, g.periodEnd);
+  GL.progress = function (S, from, to) {
+    const g = S.goals, a = from ?? g.periodStart, b = to ?? Math.min(S.day - 1, g.periodEnd);
     const acct = E.sumRange(S, 'acct', 'all', a, b);
     const out = {};
     if (S.bank) {
@@ -226,7 +291,7 @@
       g.months.unshift(rec);
       if (ratio > 1.05) {
         overspent = true;
-        const cut = Math.round((spend - g.monthBudget) / 100) * 100;
+        const cut = Math.min(Math.round((spend - g.monthBudget) / 100) * 100, Math.round((g.monthBudget * 0.25) / 100) * 100);
         g.penalty += 5;
         g.monthBudget = Math.max(1000, g.monthBudget - cut);
         S.alerts.unshift({ day: S.day, level: 'bad', text: `Controlling: Werbebudget im ${rec.month} um ${U.fmt.pct(ratio - 1, 0)} überschritten. Die Überschreitung wird vom Budget des Folgemonats abgezogen (${U.fmt.eur0(g.monthBudget)}).` });
@@ -262,12 +327,14 @@
       g.periodStart = S.day;
       g.periodEnd = dayOf(S, quarterEnd(date));
       if (g.periodEnd - g.periodStart < 20) g.periodEnd = dayOf(S, quarterEnd(U.addDays(quarterEnd(date), 5)));
-      const qLen = g.periodEnd - g.periodStart + 1;
+      const qLen = g.history[0].to - g.history[0].from + 1; // Länge des bewerteten Quartals
+      g.lastBudget = g.monthBudget;
       g.lastActual = Object.fromEntries(res.map((r) => [r.id, typeof r.actual === 'number' ? r.actual / qLen : null]));
       if (grade === 'A') g.mult *= 1.03; // Erfolg hebt die Messlatte
       if (grade === 'D') g.mult *= 0.95;
       GL.setTargets(S);
       GL.changeTrust(S, { A: 14, B: 5, C: -10, D: -20 }[grade] - (overspent ? 10 : 0), 'Quartalsbewertung: Note ' + grade);
     }
+    GL.enforce(S);
   };
 })();
