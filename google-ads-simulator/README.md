@@ -45,6 +45,31 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
   Landingpage-Investitionen, Markenbekanntheit
 - Speichern (automatisch), Export/Import als JSON, Hell/Dunkel-Modus, mobil nutzbar
 
+## Bank-Modus: Passivgeschäft Geschäftskunden (VW Bank)
+
+Eigene Branche mit realistischen Mechaniken für SEA im Einlagengeschäft:
+
+- **Produkte:** Tagesgeld Business, Festgeld Business (3/6/12/24 Monate), Geschäftskonto, Visa Business
+- **Konditionen & Zinsen:** eigene Zinsen und Aktionszinsen festlegen; der Abstand zum Markt (oberes Quartil der effektiven
+  12-Monats-Zinsen) steuert die Abschlussquote. Die Marge ergibt sich gegenüber der Refinanzierungsalternative.
+- **EZB-Zinspfad:** Einlagesatz 2,50 % (Stand Oktober 2026); Entscheide an den Sitzungsterminen; Mitbewerber ziehen mit Verzögerung nach
+- **Mitbewerber (fiktiv, typisiert):** Vergleichsportale, Direktbank mit Aktionszins, Neobanks ohne gesetzliche
+  Einlagensicherung, Großbank, Autobank, Regionalbanken
+- **Streuverluste:** generische Suchen („tagesgeld", „girokonto", „volkswagen bank login") kommen überwiegend von Privatkunden.
+  Anzeigentexte mit „für Geschäftskunden" filtern Klicks; Privatkunden-Anträge werden abgelehnt und kosten Bearbeitung.
+- **Funnel:** Antrag gestartet → abgeschickt → VideoIdent → Konto eröffnet (KYC, 5–14 Tage Verzögerung).
+  Standardmäßig misst Google Ads nur Anträge; der Offline-Conversion-Import (CRM, 2.500 €) liefert echte Eröffnungen mit Kundenwert.
+- **Einlagenbuch:** Zinsüberschuss je Tag, Abflüsse bei unattraktivem Zins, „Zinshopper" nach Aktionsende, Festgeld-Fälligkeiten und Wiederanlage
+- **Compliance:** Anzeigen mit veralteten Zinsangaben werden als irreführend abgelehnt, „p. a." ist Pflicht, „kostenlos" ist trotz Kontoführungsentgelt unzulässig;
+  Google-Verifizierung für Finanzdienstleister (Re-Verifizierung mit 30-Tage-Frist)
+- **Ereignisse:** Zinsoffensiven, Vergleichsportal-Testsieger, Debatte um Einlagensicherung, KYC-Rückstau, VideoIdent-Störung,
+  Jahresend-Liquidität, Gründungssaison, Steuertermine
+
+Recherchierte Eckdaten (Stand Oktober 2026): EZB-Einlagesatz 2,50 % seit 16.09.2026; VW Bank Geschäftskunden-Tagesgeld 2,00 % p. a.,
+Festgeld Business ab 5.000 € mit 90–720 Tagen; Aktionszinsen am Markt 3,75–5,00 % für 4–5 Monate; Finanz-CPCs im Schnitt 4–7 €.
+**Annahmen:** Suchvolumina, Einlagengrößen, Konditionen für Geschäftskonto und Visa Business, alle Mitbewerber-Daten.
+Der Simulator ist ein inoffizielles Trainingswerkzeug und nicht mit der Volkswagen Bank verbunden.
+
 ## Struktur
 
 ```
@@ -53,6 +78,7 @@ js/data.js       Branchen, Standorte, Zielgruppen, Kalender- & Zufallsereignisse
 js/model.js      Datenmodell, Qualitätsfaktor, Anzeigenstärke, Richtlinien
 js/engine.js     Simulation (Auktionen, Pacing, Smart Bidding, Wettbewerber, Markt)
 js/recs.js       Empfehlungen & Unternehmensaktionen
+js/bank.js       Bank-Modus (Zinsen, EZB, Einlagenbuch, Funnel, Compliance)
 js/ui.js, views-*.js, forms.js, charts.js, app.js   Oberfläche
 test/smoke.mjs   Engine-Test ohne Browser: node test/smoke.mjs
 ```

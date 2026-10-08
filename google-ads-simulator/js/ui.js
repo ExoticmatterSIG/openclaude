@@ -191,7 +191,7 @@
     ['Ausrichtung', [['audiences', '👥', 'Zielgruppen'], ['demographics', '🎂', 'Demografie'], ['locations', '📍', 'Standorte'], ['schedule', '🕒', 'Werbezeitplaner'], ['devices', '📱', 'Geräte']]],
     ['Statistiken & Markt', [['auction', '⚔️', 'Auktionsdaten'], ['market', '📈', 'Markt & Wettbewerb'], ['events', '📰', 'News & Ereignisse'], ['pmaxinsights', '⚡', 'PMax-Kanalbericht']]],
     ['Tools', [['planner', '🧭', 'Keyword-Planer'], ['conversions', '🎯', 'Conversions'], ['products', '🛒', 'Merchant Center'], ['experiments', '🧪', 'Tests'], ['reports', '📊', 'Berichte'], ['history', '🕘', 'Änderungsverlauf']]],
-    ['Unternehmen', [['business', '🏢', 'Unternehmen & GuV'], ['billing', '💳', 'Abrechnung'], ['settings', '⚙️', 'Einstellungen']]],
+    ['Unternehmen', [['conditions', '🏦', 'Konditionen & Zinsen'], ['business', '🏢', 'Unternehmen & GuV'], ['billing', '💳', 'Abrechnung'], ['settings', '⚙️', 'Einstellungen']]],
   ];
   UI.renderNav = function () {
     const S = APP.S;
@@ -200,6 +200,7 @@
     const disapproved = S.ads.filter((a) => a.status === 'enabled' && a.policy.status === 'disapproved').length;
     const html = NAV.map(([grp, items]) => (grp ? `<div class="navgroup">${grp}</div>` : '') + items.map(([id, ico, label]) => {
       if (id === 'products' && !M.ind(S).hasShopping) return '';
+      if (id === 'conditions' && !S.bank) return '';
       const cnt = id === 'recs' && recCount ? recCount : id === 'ads' && disapproved ? disapproved : id === 'events' && APP.unreadEvents ? APP.unreadEvents : 0;
       return `<a class="navitem ${APP.view === id ? 'on' : ''}" data-act="nav" data-v="${id}"><span class="ico">${ico}</span>${label}${cnt ? `<span class="cnt">${cnt}</span>` : ''}</a>`;
     }).join('')).join('');

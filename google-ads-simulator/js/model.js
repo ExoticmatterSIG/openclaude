@@ -39,18 +39,18 @@
     const brandName = (opts.brand || ind.brand.name).trim();
     const S = {
       version: 1, seed, rngState: seed ^ 0x9e3779b9, day: 0,
-      startDate: opts.startDate || '2026-01-05', ind: ind.id,
+      startDate: opts.startDate || ind.startDate || '2026-01-05', ind: ind.id,
       company: {
         name: opts.company || brandName, brand: brandName,
         domain: brandName.toLowerCase().replace(/[^a-z0-9]+/g, '') + '.de',
-        priceAdj: 0, awareness: 0.06, cash: diff.cash, startCash: diff.cash, fixedPerDay: Math.round((M.STARTER_BUDGET[ind.id] || 100) * diff.fixed),
+        priceAdj: 0, awareness: ind.bank ? 0.25 : 0.06, cash: diff.cash * (ind.cashMult || 1), startCash: diff.cash * (ind.cashMult || 1), fixedPerDay: ind.bank ? 0 : Math.round((M.STARTER_BUDGET[ind.id] || 100) * diff.fixed),
       },
       settings: { difficulty: opts.difficulty || 'normal', autoPause: true },
       account: {
         attribution: 'dda', autoTagging: true, consentMode: 'basic', consentRate: 0.74, trackingOk: true,
         enhancedConv: false, invalidRate: 0.025, paymentOk: true, autoApply: false, reportingDelay: 0,
       },
-      convActions: ind.conv.map((c, i) => ({ id: 'ca' + (i + 1), ...c, countType: c.category === 'Kauf' ? 'every' : 'one', window: 30, status: 'enabled' })),
+      convActions: ind.conv.map((c, i) => ({ id: 'ca' + (i + 1), ...c, countType: c.category === 'Kauf' ? 'every' : 'one', window: c.requiresImport ? 90 : 30, status: c.requiresImport ? 'paused' : 'enabled' })),
       campaigns: [], adGroups: [], keywords: [], ads: [], assets: [], negatives: [], negLists: [],
       customAudiences: [], products: [], experiments: [],
       market: { demand: 1, cpcIdx: 1, cvrIdx: 1, ctrInfo: 1, themeTrend: {}, events: [], log: [], news: [], fx: null, hist: [] },
@@ -64,20 +64,25 @@
     // Suchanfragen-Universum erzeugen
     let qn = 1;
     for (const th of ind.themes) {
-      for (const [kw, vol, cpc] of th.kws) {
-        for (const mid of ind.mods) {
+      for (const [kw, vol, cpc, biz] of th.kws) {
+        for (const mid of th.mods || ind.mods) {
           const mod = { ...D.MODS[mid], ...((ind.modOverrides || {})[mid] || {}) };
           S.queries.push({
             id: 'q' + qn++, text: mod.t.replace('{k}', kw), theme: th.id, kw, mod: mid,
-            vol: Math.round(vol * mod.vol * rng.range(0.85, 1.15)), intent: mod.intent, cpc: +(cpc * mod.cpc).toFixed(2), brand: null,
+            vol: Math.round(vol * mod.vol * rng.range(0.85, 1.15)), intent: mod.intent * (mod.quality || 1), cpc: +(cpc * mod.cpc).toFixed(2), brand: null,
+            biz: U.clamp((biz ?? 1) * (mod.biz ?? 1), 0, 1),
           });
         }
       }
     }
     const brandQ = brandName.toLowerCase();
-    [[brandQ, 1, 2.2], [brandQ + ' erfahrungen', 0.12, 1.2], [brandQ + ' gutschein', 0.1, 2.0]].forEach(([text, f, intent]) => {
-      S.queries.push({ id: 'q' + qn++, text, theme: '_brand', kw: brandQ, mod: 'brand', vol: Math.round(ind.brand.vol * f), baseVol: Math.round(ind.brand.vol * f), intent, cpc: 0.45, brand: 'player' });
-    });
+    if (ind.brandQueries) {
+      for (const [text, vol, intent, biz] of ind.brandQueries) S.queries.push({ id: 'q' + qn++, text, theme: '_brand', kw: text, mod: 'brand', vol, baseVol: vol, intent, cpc: 0.55, brand: 'player', biz });
+    } else {
+      [[brandQ, 1, 2.2], [brandQ + ' erfahrungen', 0.12, 1.2], [brandQ + ' gutschein', 0.1, 2.0]].forEach(([text, f, intent]) => {
+        S.queries.push({ id: 'q' + qn++, text, theme: '_brand', kw: brandQ, mod: 'brand', vol: Math.round(ind.brand.vol * f), baseVol: Math.round(ind.brand.vol * f), intent, cpc: 0.45, brand: 'player' });
+      });
+    }
 
     // Mitbewerber
     ind.competitors.forEach((c, i) => S.competitors.push(M.makeCompetitor(S, c, rng, diff, 'c' + (i + 1))));
@@ -98,7 +103,8 @@
       }
     }
 
-    if (opts.starter !== false) M.createStarter(S, rng);
+    if (ind.bank) G.BANK.init(S, rng);
+    if (opts.starter !== false) (ind.bank ? G.BANK.createStarter(S, rng) : M.createStarter(S, rng));
     M.log(S, 'Konto', S.company.name, 'Konto eröffnet – Branche: ' + ind.name);
     S.alerts.push({ day: 0, level: 'info', text: 'Willkommen! Ihr Konto ist eingerichtet. Starten Sie die Simulation über ▶ oben rechts.' });
     return S;
@@ -114,13 +120,14 @@
       id: id || M.nid(S, 'c'), name: c.name, domain: c.domain || c.name.toLowerCase().replace(/[^a-z0-9]+/g, '') + '.de',
       style: c.style, budget: c.budget, baseBudget: c.budget, qs: c.qs, aggr: c.aggr * (diff ? diff.comp : 1), baseAggr: c.aggr,
       themes: c.themes || ind.themes.map((t) => t.id), shopping: !!c.shopping, geo,
+      kind: c.kind || null, portal: !!c.portal,
       active: true, pausedUntil: null, cash: c.budget * 160, themeAggr, lp: +rng.range(0.75, 1.15).toFixed(2),
       hoursB2B: ind.hours === 'b2b' && rng.chance(0.5), pot: c.budget, smart: !['budget', 'erratic'].includes(c.style), entered: S.day || 0,
       d: { spend: 0, clicks: 0, conv: 0, imps: 0, elig: 0, lostB: 0 }, h7: [],
     };
   };
 
-  M.STARTER_BUDGET = { fashion: 90, saas: 160, local: 130, travel: 120, insurance: 220, fitness: 70 };
+  M.STARTER_BUDGET = { vwbank: 240, fashion: 90, saas: 160, local: 130, travel: 120, insurance: 220, fitness: 70 };
 
   M.createStarter = function (S, rng) {
     const ind = M.ind(S);
@@ -340,6 +347,12 @@
       if (texts.some((t) => /(garantiert|100\s?%|kostenlos\b.*sofort|risikofrei)/i.test(t)) && ['insurance', 'saas'].includes(S.ind)) { status = 'limited'; reasons.push('Irreführende Versprechen (Finanz-/Geschäftsangaben)'); }
       const comps = S.competitors.map((c) => c.name.toLowerCase());
       if (texts.some((t) => comps.some((c) => t.toLowerCase().includes(c)))) { status = 'limited'; reasons.push('Marken: Verwendung fremder Markennamen'); }
+    }
+    if (M.ind(S).bank && S.bank) {
+      const bp = G.BANK.policy(S, ad);
+      reasons.push(...bp.reasons);
+      if (bp.status === 'disapproved') status = 'disapproved';
+      else if (bp.status === 'limited' && status === 'approved') status = 'limited';
     }
     return { status, reasons };
   };

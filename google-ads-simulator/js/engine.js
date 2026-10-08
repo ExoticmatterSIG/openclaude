@@ -103,8 +103,9 @@
         comp.cash = tpl.budget * 200; comp.entered = day; comp.isNew = true;
         S.competitors.push(comp);
       } else {
-        if (!active.length) return null;
-        comp = rng.pick(active);
+        const pool = def.compFilter === 'rates' ? active.filter((c) => c.rates) : active;
+        if (!pool.length) return null;
+        comp = rng.pick(pool);
       }
       ev.comp = comp.id;
     }
@@ -123,6 +124,7 @@
         break;
     }
     S.market.events.push(ev);
+    if (G.BANK && S.bank) G.BANK.onEvent(S, ev, 'start');
     S.market.log.unshift({ day, name: ev.name, desc: ev.desc, sev: ev.sev, id: ev.id });
     if (S.market.log.length > 300) S.market.log.length = 300;
     S.alerts.unshift({ day, level: ev.sev === 'crit' ? 'bad' : ev.sev === 'warn' ? 'warn' : 'info', text: '📰 ' + ev.name, event: ev.id });
@@ -140,6 +142,7 @@
       fx.cal.push(c.ev.name);
       for (const [k, v] of Object.entries(c.fx)) {
         if (k === 'themeDemand') for (const [t, m] of Object.entries(v)) mul(fx.themeDemand, t, m);
+        else if (k === 'themeCvr') for (const [t, m] of Object.entries(v)) mul(fx.themeCvr, t, m);
         else fx[k] *= v;
       }
     }
@@ -161,6 +164,7 @@
         case 'cold': [['jacken', 1.5], ['heizung', 2.2], ['sanitaer', 1.35], ['ski', 1.35], ['wellness', 1.2], ['hoodies', 1.2]].forEach(([t, m]) => mul(fx.themeDemand, t, m)); break;
         case 'price_hike': mul(fx.compAggrById, e.comp, 0.85); fx.playerCvr *= 1.08; break;
         case 'influencer': fx.brandVol *= 4; break;
+        default: if (G.BANK && S.bank) G.BANK.fx(S, e, fx, mul);
       }
     }
     return fx;
@@ -176,6 +180,7 @@
     // abgelaufene Ereignisse
     for (const e of m.events) if (e.end < S.day && !e.done) {
       e.done = true;
+      if (G.BANK && S.bank) G.BANK.onEvent(S, e, 'end');
       if (e.def === 'lp_down') S.alerts.unshift({ day: S.day, level: 'good', text: 'Website wieder erreichbar.' });
     }
     m.events = m.events.filter((e) => e.end >= S.day - 60);
@@ -188,6 +193,7 @@
     if (S.day > 2) {
       for (const def of D.RANDOM_EVENTS) {
         if (def.industries && !def.industries.includes(S.ind)) continue;
+        if (def.notIndustries && def.notIndustries.includes(S.ind)) continue;
         if (def.months && !def.months.includes(date.getUTCMonth())) continue;
         if (m.events.some((e) => e.def === def.id && e.end >= S.day && !e.done)) continue;
         if (rng() < def.p * diff.events) spawnEvent(S, rng, def, diff);
@@ -208,6 +214,17 @@
     const ind = M.ind(S), fx = S.market.fx, day = S.day;
     const ctx = { date, dow: U.dowMon0(date), month: date.getUTCMonth(), fx, ind, camps: [], cands: {}, shopCands: {}, inv: [], comps: [], compsByQ: {}, revenue: 0, realConv: 0, other: 0, assist: [], visitors: 0, carts: 0, buyers: 0, awareImps: 0, mktClicks: 0, mktCost: 0, playerClicks: 0 };
     S.account.paymentOk = S.company.cash > 0;
+    ctx.bank = !!ind.bank;
+    ctx.prodCvr = ind.bank ? G.BANK.cvrMults(S) : {};
+    const finBlocked = ind.bank && S.bank.verify.status === 'suspended';
+    // Summe der Raten aller primären Conversion-Aktionen (Smart Bidding optimiert darauf)
+    const prim = S.convActions.filter((c) => c.status === 'enabled' && c.primary);
+    ctx.primRate = (biz, b2b) => {
+      if (!prim.length) return 1;
+      let r = 0;
+      for (const c of prim) r += c.rate * (!ind.bank ? 1 : c.qualified ? G.BANK.bizEff(biz, b2b) * (c.qRate || 1) : G.BANK.appMix(biz, b2b).factor);
+      return r || 0.01;
+    };
     const priceAdj = S.company.priceAdj;
     ctx.priceCvr = Math.pow(1 + priceAdj, -2.2);
     ctx.aov = ind.aov * (1 + priceAdj) * fx.aov;
@@ -223,12 +240,12 @@
     for (const c of S.campaigns) {
       const rt = c.rt;
       rt.active = false; rt.d = { elig: 0, lostB: 0, lostR: 0, impw: 0, top: 0, abs: 0, spend: 0, conv: 0, clk: 0 };
-      if (c.status !== 'enabled' || !S.account.paymentOk) continue;
+      if (c.status !== 'enabled' || !S.account.paymentOk || finBlocked) continue;
       if (c.startDay > day || (c.endDay !== null && c.endDay < day)) continue;
       const ags = M.agsOf(S, c.id).filter((a) => a.status === 'enabled');
       for (const ag of ags) {
         const ads = M.adsOf(S, ag.id).filter((a) => M.adServable(S, a));
-        ag.rt = { ads, str: ads.length ? Math.max(...ads.map((a) => M.adStrength(S, a).score)) : 0, lp: M.lpScore(S, ag) };
+        ag.rt = { ads, str: ads.length ? Math.max(...ads.map((a) => M.adStrength(S, a).score)) : 0, lp: M.lpScore(S, ag), b2b: ind.bank && ads.some((a) => G.BANK.isB2B(a)), rate: ind.bank && ads.some((a) => /\d[,.]\d{1,2}\s?%/.test(JSON.stringify(a.headlines || []))) };
       }
       const servableAgs = c.type === 'shopping' ? ags : ags.filter((ag) => ag.rt.ads.length);
       if (!servableAgs.length) continue;
@@ -393,6 +410,7 @@
   function convert(S, rng, ctx, buf, keys, clicks, cvr, opts) {
     if (clicks <= 0) return;
     const ind = ctx.ind, fx = ctx.fx;
+    if (ctx.bank) return convertBank(S, rng, ctx, buf, keys, clicks, cvr, opts);
     for (const ca of S.convActions) {
       if (ca.status !== 'enabled') continue;
       let rate = cvr * ca.rate;
@@ -414,7 +432,35 @@
       if (!ca.primary && ca.category === 'In den Einkaufswagen') ctx.carts += n;
     }
   }
+  // Bank: Antragsstrecke mit Privatkunden-Streuverlusten, KYC und Kontoeröffnung (Offline-Import)
+  function convertBank(S, rng, ctx, buf, keys, clicks, cvr, opts) {
+    const ind = ctx.ind, fx = ctx.fx, B = G.BANK;
+    const q = opts.q;
+    const biz = q ? (q.biz ?? 1) : ind.dispBiz;
+    const mix = B.appMix(biz, opts.b2b), bizEff = mix.bizEff;
+    const prod = q ? B.prodOf(q.theme) : null;
+    for (const ca of S.convActions) {
+      const enabled = ca.status === 'enabled';
+      if (!enabled && !ca.qualified) continue;
+      const rate = cvr * ca.rate * (ca.qualified ? bizEff * (ca.qRate || 1) * (fx.kyc || 1) : mix.factor);
+      const n = rng.binomial(clicks, U.clamp(rate, 0, 0.95));
+      if (!n) continue;
+      if (ca.appSubmit) B.onApplications(S, n, rng.binomial(n, mix.privShare));
+      for (let i = 0; i < n; i++) {
+        const recorded = enabled && rng() < ctx.consent;
+        const opening = ca.opening ? B.drawOpening(S, rng, prod) : null;
+        if (!recorded && !opening) continue;
+        const value = opening ? opening.value : ca.value === 'dynamic' ? ctx.aov : +ca.value || 0;
+        let lag = drawLag(rng, ind.lag) + S.account.reportingDelay;
+        if (ca.lagExtra) lag += rng.int(ca.lagExtra[0], ca.lagExtra[1]) + (ca.opening ? fx.kycLag || 0 : 0);
+        const entry = { due: S.day + lag, day: S.day, keys, prim: ca.primary ? 1 : 0, value, recorded, real: !!opening, rv: opening ? opening.value : 0, assist: null, bank: opening };
+        if (lag === 0) applyConv(S, buf, entry, true); else S.pending.push(entry);
+        if (ca.primary && recorded && opts.campRt) opts.campRt.d.conv += 1;
+      }
+    }
+  }
   function applyConv(S, buf, e, today) {
+    if (e.bank && e.real && G.BANK) G.BANK.onOpen(S, e.bank);
     const f = e.assist ? 0.75 : 1;
     const add = today ? (keys, idx, v, ff) => addKeys(buf, keys, idx, v, ff) : (keys, idx, v, ff) => creditPast(S, keys, e.day, idx, v, ff);
     if (e.recorded) {
@@ -446,8 +492,8 @@
     userLift = Math.min(userLift, 3);
     const compLift = Math.pow(userLift, 0.65); // Mitbewerber mit Smart Bidding bieten auf wertvolle Nutzer ebenfalls höher
     const hourCvr = D.HOUR_CVR[ind.hours][h];
-    const baseCvrCtx = ind.baseCvr * locDef.cvr * devDef.cvr * ind.age[age] * ind.gender[gender] * hourCvr * userLift * S.market.cvrIdx * fx.cvr * (fx.themeCvr[q.theme] || 1) * ctx.priceCvr * fx.playerCvr * (fx.playerDown ? 0 : 1);
-    const brandCvr = q.brand === 'player' ? 2.6 : q.brand ? 0.22 : 1;
+    const baseCvrCtx = ind.baseCvr * locDef.cvr * devDef.cvr * ind.age[age] * ind.gender[gender] * hourCvr * userLift * S.market.cvrIdx * fx.cvr * (fx.themeCvr[q.theme] || 1) * ctx.priceCvr * fx.playerCvr * (fx.playerDown ? 0 : 1) * (ctx.prodCvr[q.theme] || 1);
+    const brandCvr = q.brand === 'player' ? (ind.bank ? 1 : 2.6) : q.brand ? 0.22 : 1;
 
     const eligCamps = [];
     function campEligible(c) {
@@ -490,7 +536,7 @@
       const c = cand.c, b = c.bidStrategy, rt = c.rt;
       let bid;
       if (rt.smart) {
-        const pc = cvr * rt.bias * rng.logn(rt.sigma);
+        const pc = cvr * rt.bias * rng.logn(rt.sigma) * ctx.primRate(q.biz ?? 1, cand.ag.rt.b2b);
         bid = smartBid(c, pc, rt.estValue);
       } else if (b.type === 'maxclicks' || b.type === 'tis') {
         bid = rt.lambda;
@@ -611,7 +657,12 @@
     const aware = 1 + S.company.awareness * 0.6;
     let audCtr = 1;
     for (const a of rt.aud) if (audMember(ctx, rng, u.memo, a.def, q)) audCtr *= a.def.ctr;
-    const ctr = U.clamp(baseline * Math.pow(cand.rel, 0.5) * M.strengthCtr(str) * assCtr * u.devDef.ctr * fx.ctr * aware * Math.min(u.userCtr, 1.6) * (cand.pmax ? 0.95 : 1), 0, 0.6);
+    let bankCtr = 1;
+    if (ctx.bank) {
+      bankCtr = G.BANK.ctrQual(q.biz ?? 1, cand.ag.rt.b2b);
+      if (cand.ag.rt.rate && (q.theme === 'tagesgeld' || q.theme === 'festgeld')) bankCtr *= U.clamp(1.08 + 0.25 * (q.theme === 'tagesgeld' ? ctx.prodCvr._tgSpread : ctx.prodCvr._fgSpread), 0.75, 1.4);
+    }
+    const ctr = U.clamp(baseline * Math.pow(cand.rel, 0.5) * M.strengthCtr(str) * assCtr * u.devDef.ctr * fx.ctr * aware * Math.min(u.userCtr, 1.6) * (cand.pmax ? 0.95 : 1) * bankCtr, 0, 0.6);
     rt.d.impw += w; if (best.top) rt.d.top += w; if (best.top && best.pos === 0) rt.d.abs += w;
     const imps = rng.sround(w);
     const raw = rng.poisson(w * ctr);
@@ -637,7 +688,7 @@
       if (best.top) v[I.top] += w; if (best.top && best.pos === 0) v[I.abs] += w;
     }
     ctx.visitors += clicks;
-    convert(S, rng, ctx, buf, keys, clicks, best.cvr, { ass: rt.ass, device: u.device, campRt: rt, network: 'search' });
+    convert(S, rng, ctx, buf, keys, clicks, best.cvr, { ass: rt.ass, device: u.device, campRt: rt, network: 'search', q, b2b: cand.ag.rt.b2b });
     // Suchnetzwerk-Partner
     if (c.networks.partners && c.type === 'search') {
       const pw = w * 0.18;
@@ -649,7 +700,7 @@
         const pk = keys.filter((k) => !k.startsWith('net|')).concat(['net|' + c.id + '~partners']);
         for (const k of pk) { const v = bufVec(buf, k); v[I.imp] += pimps; v[I.clk] += pclk; v[I.cost] += pcost; }
         ctx.visitors += pclk;
-        convert(S, rng, ctx, buf, pk, pclk, best.cvr * 0.7, { ass: rt.ass, device: u.device, campRt: rt, network: 'partners' });
+        convert(S, rng, ctx, buf, pk, pclk, best.cvr * 0.7, { ass: rt.ass, device: u.device, campRt: rt, network: 'partners', q, b2b: cand.ag.rt.b2b });
       }
     }
   }
@@ -840,7 +891,7 @@
     for (const e of S.pending) {
       if (e.due > day) { keep.push(e); continue; }
       applyConv(S, buf, e, e.day === day);
-      if (e.real) { ctx.revenue += e.rv; ctx.realConv += 1; }
+      if (e.real) { if (!ctx.bank) ctx.revenue += e.rv; ctx.realConv += 1; }
       if (e.real) ctx.buyers += 1;
     }
     S.pending = keep;
@@ -848,7 +899,7 @@
   // Echte Umsätze von heute (Lag 0) wurden in convert direkt verbucht
   function realizeToday(S, buf, ctx) {
     const v = buf.get('acct|all');
-    if (v) { ctx.revenue += v[I.rval]; ctx.buyers += v[I.rconv]; ctx.realConv += v[I.rconv]; }
+    if (v) { if (!ctx.bank) ctx.revenue += v[I.rval]; ctx.buyers += v[I.rconv]; ctx.realConv += v[I.rconv]; }
   }
 
   function commit(S, buf, day) {
@@ -971,7 +1022,8 @@
     const aw = S.company.awareness;
     S.company.awareness = U.clamp(aw * 0.9965 + (ctx.awareImps / 1e6) * 0.012 * (1 - aw) + (ctx.playerClicks / 1e5) * 0.01, 0.01, 0.6);
     // Markenvolumen folgt der Bekanntheit
-    for (const q of S.queries) if (q.brand === 'player') q.vol = Math.round(q.baseVol * (0.4 + S.company.awareness * 10) * (S.market.fx.brandVol || 1));
+    for (const q of S.queries) if (q.brand === 'player') q.vol = Math.round(q.baseVol * (ctx.bank ? 1 : 0.4 + S.company.awareness * 10) * (S.market.fx.brandVol || 1));
+    if (ctx.bank) G.BANK.daily(S, ctx, rng);
 
     // GuV & Kasse
     const cost = (S.stats.acct && S.stats.acct.all && S.stats.acct.all[day]) ? S.stats.acct.all[day][I.cost] : 0;

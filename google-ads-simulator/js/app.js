@@ -171,7 +171,7 @@
       <div class="card"><div class="hd"><h3>2. Unternehmen & Schwierigkeit</h3></div><div class="bd">
         <div class="row"><div class="field"><span>Marke / Unternehmensname</span><input type="text" id="st-brand" value="${esc(ind.brand.name)}" maxlength="24"></div>
         <div class="field"><span>Schwierigkeit</span><select id="st-diff">${Object.entries(M.DIFFICULTY).map(([k, v]) => `<option value="${k}" ${k === startSel.difficulty ? 'selected' : ''}>${v.name} – Startkapital ${f.eur0(v.cash)}</option>`).join('')}</select></div>
-        <div class="field"><span>Startdatum</span><input type="date" id="st-date" value="2026-01-05"></div>
+        <div class="field"><span>Startdatum</span><input type="date" id="st-date" value="${ind.startDate || '2026-01-05'}"></div>
         <div class="field"><span>Seed (optional, für reproduzierbare Märkte)</span><input type="number" id="st-seed" placeholder="zufällig"></div></div>
         <label class="chk"><input type="checkbox" id="st-starter" checked> Mit einer einfachen Start-Suchkampagne beginnen (mit Optimierungspotenzial)</label>
         <div style="margin-top:16px"><button class="btn primary" data-act="startgame" style="padding:10px 22px;font-size:15px">Simulation starten</button></div></div></div>
