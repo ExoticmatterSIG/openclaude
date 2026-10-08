@@ -46,7 +46,7 @@
     return S;
   };
   APPX.save = async function (silent) {
-    if (!APP.S) return;
+    if (!APP.S || APP.sandbox) return; // Übungsumgebung der Akademie nie speichern
     const ok = await kvSet(SAVE_KEY, APPX.serialize(APP.S));
     if (!silent) UI.toast(ok ? 'Spielstand gespeichert' : 'Speichern fehlgeschlagen – bitte exportieren', ok ? 'good' : 'bad');
   };
@@ -146,10 +146,11 @@
     save: () => APPX.save(false),
     export: () => APPX.download(`ads-simulator-${APP.S.company.brand.toLowerCase().replace(/\W+/g, '-')}-tag${APP.S.day}.json`, APPX.serialize(APP.S), 'application/json'),
     chg_import: (el) => {
+      if (APP.sandbox) { UI.toast('In der Übungsumgebung nicht verfügbar', 'bad'); return; }
       const file = el.files[0]; if (!file) return;
       file.text().then((txt) => { try { APP.S = APPX.deserialize(txt); APP.scope = { cid: null, agid: null }; APPX.save(true); UI.go('overview'); UI.toast('Spielstand importiert', 'good'); } catch (e) { UI.toast('Import fehlgeschlagen: ' + e.message, 'bad'); } });
     },
-    newgame: () => UI.confirm('Neues Spiel starten?', 'Der aktuelle Spielstand wird überschrieben. Exportieren Sie ihn vorher, wenn Sie ihn behalten möchten.', () => { APPX.pause(); kvDel(SAVE_KEY); APP.S = null; setTimeout(startScreen, 0); }, 'Neues Spiel'),
+    newgame: () => APP.sandbox ? G.ACAD.exit() : UI.confirm('Neues Spiel starten?', 'Der aktuelle Spielstand wird überschrieben. Exportieren Sie ihn vorher, wenn Sie ihn behalten möchten.', () => { APPX.pause(); kvDel(SAVE_KEY); APP.S = null; setTimeout(startScreen, 0); }, 'Neues Spiel'),
   });
 
   document.addEventListener('keydown', (ev) => {
@@ -166,6 +167,7 @@
   // ---------- Startbildschirm ----------
   let startSel = { industry: 'fashion', difficulty: 'normal' };
   async function startScreen() {
+    APP.S = null; APP.running = false;
     document.getElementById('topbar').innerHTML = `<div class="brand"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M6 25 15 7" stroke="#fbbc04" stroke-width="6" stroke-linecap="round"/><path d="M17 7l9 18" stroke="#4285f4" stroke-width="6" stroke-linecap="round"/><circle cx="6.5" cy="24.5" r="3.6" fill="#34a853"/></svg><span class="brand-title" style="display:inline"><b>Ads</b> Simulator</span></div>`;
     document.getElementById('sidenav').innerHTML = '';
     document.getElementById('sidenav').style.display = 'none';
@@ -176,6 +178,7 @@
     document.getElementById('main').innerHTML = `<div class="start">
       <div class="hero"><svg width="64" height="64" viewBox="0 0 32 32"><path d="M6 25 15 7" stroke="#fbbc04" stroke-width="6" stroke-linecap="round"/><path d="M17 7l9 18" stroke="#4285f4" stroke-width="6" stroke-linecap="round"/><circle cx="6.5" cy="24.5" r="3.6" fill="#34a853"/></svg><div><h1>Google-Ads-Simulator</h1><p>Führen Sie ein Werbekonto in einem lebendigen Markt: echte Auktionsmechanik, Qualitätsfaktor, Smart Bidding, sieben Kampagnentypen, Wettbewerber mit eigener KI, Saisonalität und unvorhersehbare Ereignisse. Ziel: profitables Wachstum.</p></div></div>
       ${savedInfo ? `<div class="card"><div class="bd" style="padding:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap"><div><b>Gespeicherter Spielstand:</b> ${esc(savedInfo.name)} · ${esc(savedInfo.ind)} · Tag ${savedInfo.day} · Kasse ${f.eur0(savedInfo.cash)}</div><button class="btn primary" data-act="resume" style="margin-left:auto">▶ Fortsetzen</button></div></div>` : ''}
+      <div class="card"><div class="bd" style="padding:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap"><div><b>📚 Akademie:</b> ${G.ACADEMY_CONTENT.COURSES.length} Lernkurse mit Lektionen, Quiz und Praxisaufgaben – unabhängig vom Spielstand. Mit Hinweisen, wo der Simulator von Google Ads abweicht.</div><button class="btn" data-act="acadopen" style="margin-left:auto">Zur Akademie</button></div></div>
       <div class="card"><div class="hd"><h3>1. Branche wählen</h3></div><div class="bd"><div class="choice indgrid">${D.INDUSTRIES.map((i) => `<button class="opt ${i.id === startSel.industry ? 'on' : ''}" data-act="startind" data-v="${i.id}"><span class="ico">${i.icon}</span><span class="t">${esc(i.name)}</span><span class="d">${esc(i.desc)}</span><span class="d">Ø Warenkorb/Lead-Wert ${f.eur0(i.aov)} · Marge ${f.pct0(i.margin)}</span></button>`).join('')}</div></div></div>
       <div class="card"><div class="hd"><h3>2. Unternehmen & Schwierigkeit</h3></div><div class="bd">
         <div class="row"><div class="field"><span>Marke / Unternehmensname</span><input type="text" id="st-brand" value="${esc(ind.brand.name)}" maxlength="24"></div>
@@ -188,6 +191,7 @@
         ${['Such-, Shopping-, Performance-Max-, Display-, Video-, Demand-Gen- & App-Kampagnen', 'Stündliche Auktionen mit Ad Rank & Zweitpreis-CPC', 'Qualitätsfaktor mit 3 Komponenten', '10 Gebotsstrategien inkl. Smart Bidding & Lernphase', 'Keyword-Optionen: genau, Wortgruppe, weitgehend', 'Suchbegriffe & ausschließende Keywords (+ Listen)', 'Responsive Suchanzeigen mit Anzeigenstärke & Pinning', 'Anzeigenprüfung & Richtlinien-Ablehnungen', '10 Asset-Typen (Sitelinks, Anrufe, Bilder …)', 'Zielgruppen: kaufbereit, Interessen, Remarketing, Customer Match, benutzerdefiniert', 'Demografie-, Standort-, Geräte- & Zeitplan-Gebotsanpassungen', 'Budget-Pacing (2×-Regel, 30,4× Monat)', 'Auktionsdaten (Überschneidung, höhere Position …)', 'Wettbewerber-KI mit Budgets, Strategien, Markteintritt & Insolvenz', 'Saisonkalender: Black Week, Weihnachten, Prime Day …', '20+ Zufallsereignisse: Bieterkriege, Serverausfall, Tracking-Fehler, Konjunktur …', 'Conversion-Verzögerung, Consent Mode & Attribution', 'Merchant Center mit Preis-Benchmarks', 'Tests (A/B-Experimente) mit Signifikanz', 'Keyword-Planer mit Prognose', 'Empfehlungen & Optimierungsfaktor', 'Berichte mit CSV-Export, Änderungsverlauf, Abrechnung', 'Unternehmens-GuV: echter Gewinn vs. gemessene Conversions', 'Speichern, Export & Import'].map((x) => `<div>${esc(x)}</div>`).join('')}
       </div></div></div></div>`;
   }
+  APPX.startScreen = startScreen;
   Object.assign(ACT, {
     startind: (el, d) => { startSel.industry = d.v; const b = document.getElementById('st-brand'); const keepBrand = b && !D.INDUSTRIES.some((i) => i.brand.name === b.value) ? b.value : null; startScreen().then(() => { if (keepBrand) document.getElementById('st-brand').value = keepBrand; }); },
     startgame: () => {

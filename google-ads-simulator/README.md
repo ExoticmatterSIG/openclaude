@@ -90,6 +90,15 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
   (Streuverluste in €, echter Deckungsbeitrag je Kampagne, Budget- vs. Rang-Engpass, QF-Diagnose, beste Zeiten, Geräte,
   Mitbewerber-Insiderinfos, Marktausblick, Psychologie-Check, im Bank-Modus Zinsberatung) und ein Premium-Strategie-Audit.
   Bezahlt wird sofort aus der Kasse; Analysen lassen sich gegen erneute Zahlung aktualisieren.
+- **📚 Akademie (Lernkurse):** 11 Kurse vom Einsteiger bis zum Profi – Auktion & Qualitätsfaktor, Kontostruktur & Keywords,
+  Anzeigen & Richtlinien, Gebotsstrategien & Budget, Messung & Attribution, Zielgruppen & Ausrichtung, Shopping/PMax/Display,
+  Analyse & Tests, Psychologie & CRO, Bank-Modus sowie „Simulator vs. echtes Google Ads". Jede Lektion hat ein Quiz und einen
+  Hinweis **„Unterschied zum echten Google Ads"**, wo der Simulator vereinfacht, abweicht oder Zusatzinfos zeigt.
+  Jeder Kurs (außer dem letzten) endet mit einer **Praxisaufgabe** in einem eigenen Übungskonto (Sandbox), die automatisch
+  geprüft wird. Die Akademie ist vom Startbildschirm und aus dem Spiel erreichbar, läuft unabhängig vom Spielstand
+  (dieser wird pausiert und danach unverändert fortgesetzt; das Übungskonto wird nie gespeichert). Der Lernfortschritt liegt
+  separat im Browser (`localStorage`, Schlüssel `gads-sim-academy`). Inhalte: `js/academy-content.js`, UI: `js/academy.js`,
+  Test: `node test/academy.mjs`.
 
 ## Bank-Modus: Passivgeschäft Geschäftskunden (VW Bank)
 
@@ -125,8 +134,11 @@ js/model.js      Datenmodell, Qualitätsfaktor, Anzeigenstärke, Richtlinien
 js/engine.js     Simulation (Auktionen, Pacing, Smart Bidding, Wettbewerber, Markt)
 js/recs.js       Empfehlungen & Unternehmensaktionen
 js/bank.js       Bank-Modus (Zinsen, EZB, Einlagenbuch, Funnel, Compliance)
+js/goals.js, psych.js, glossary.js, tips.js   Geschäftsleitung, Kaufverhalten, Erklärungen, Tipps
+js/academy-content.js, academy.js   Akademie: Kursinhalte und Lern-UI mit Sandbox
 js/ui.js, views-*.js, forms.js, charts.js, app.js   Oberfläche
 test/smoke.mjs   Engine-Test ohne Browser: node test/smoke.mjs
+test/academy.mjs Akademie-Inhalte & Praxisaufgaben prüfen: node test/academy.mjs
 ```
 
 Alle Unternehmen, Marken und Daten sind fiktiv. Die Mechaniken sind modellhaft nachgebildet und keine exakte Kopie der Google-Algorithmen.

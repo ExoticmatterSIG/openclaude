@@ -359,3 +359,35 @@ th.has-tip.sortable { cursor: pointer; }
   .cash { padding: 4px 7px; font-size: 13px; }
   .simdate .d { font-size: 13px; }
 }
+
+/* ---------- Akademie ---------- */
+.acad-bar { height: 6px; border-radius: 3px; background: var(--border-soft); overflow: hidden; }
+.acad-bar i { display: block; height: 100%; background: var(--good); border-radius: 3px; }
+.acad-lv { margin: 18px 0 8px; font-size: 15px; color: var(--text-2); }
+.acad-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px; margin-bottom: 8px; }
+.acad-card { display: flex; flex-direction: column; gap: 6px; padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); }
+.acad-card:hover { border-color: var(--primary); text-decoration: none; box-shadow: var(--shadow); }
+.acad-card.done { border-color: var(--good); }
+.acad-card .ico { font-size: 26px; }
+.acad-card .t { font-weight: 600; font-size: 15px; }
+.acad-card .d { font-size: 13px; color: var(--text-2); }
+.acad-card .meta { font-size: 12px; color: var(--text-3); }
+.acad-list { display: flex; flex-direction: column; }
+.acad-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border-soft); color: var(--text); }
+.acad-row:first-child { border-top: 0; }
+.acad-row:hover { background: var(--surface-2); text-decoration: none; }
+.acad-row .num { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; flex: none; }
+.acad-row .num.ok { background: var(--good-soft); border-color: var(--good); color: var(--good); }
+.acad-body { padding: 16px 20px; font-size: 15px; line-height: 1.6; }
+.acad-body p:first-child { margin-top: 0; }
+.acad-diff { font-size: 14px; line-height: 1.55; }
+.acad-q { margin-bottom: 16px; }
+.acad-q .qq { margin-bottom: 8px; }
+.acad-opt { display: block; width: 100%; text-align: left; margin: 4px 0; padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
+.acad-opt:hover { border-color: var(--primary); }
+.acad-opt.right { border-color: var(--good); background: var(--good-soft); }
+.acad-opt.wrong { border-color: var(--bad); background: var(--bad-soft); }
+.acad-checks { list-style: none; padding: 0; margin: 8px 0; }
+.acad-checks li { padding: 3px 0; }
+.acad-banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 12px; border-radius: 8px; background: var(--primary-soft); border: 1px solid var(--primary); position: sticky; top: calc(var(--top-h) + 4px); z-index: 5; }
+.acad-banner .tools { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }

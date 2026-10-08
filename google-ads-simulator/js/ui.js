@@ -187,7 +187,7 @@
 
   // ---------- Navigation ----------
   const NAV = [
-    ['', [['overview', '🏠', 'Übersicht'], ['recs', '💡', 'Empfehlungen'], ['tips', '🎓', 'Tipps & Beratung']]],
+    ['', [['overview', '🏠', 'Übersicht'], ['recs', '💡', 'Empfehlungen'], ['tips', '🎓', 'Tipps & Beratung'], ['academy', '📚', 'Akademie']]],
     ['Kampagnen', [['campaigns', '📣', 'Kampagnen'], ['adgroups', '🗂️', 'Anzeigengruppen'], ['ads', '📝', 'Anzeigen'], ['assets', '🧩', 'Assets'], ['keywords', '🔑', 'Keywords'], ['searchterms', '🔎', 'Suchbegriffe'], ['negatives', '🚫', 'Ausschließende Keywords']]],
     ['Ausrichtung', [['audiences', '👥', 'Zielgruppen'], ['demographics', '🎂', 'Demografie'], ['locations', '📍', 'Standorte'], ['schedule', '🕒', 'Werbezeitplaner'], ['devices', '📱', 'Geräte']]],
     ['Statistiken & Markt', [['auction', '⚔️', 'Auktionsdaten'], ['market', '📈', 'Markt & Wettbewerb'], ['events', '📰', 'News & Ereignisse'], ['pmaxinsights', '⚡', 'PMax-Kanalbericht']]],
@@ -247,7 +247,7 @@
     C.reset();
     const y = window.scrollY;
     try {
-      main.innerHTML = v.render();
+      main.innerHTML = (APP.sandbox && G.ACAD ? G.ACAD.banner() : '') + v.render();
     } catch (e) {
       console.error(e);
       main.innerHTML = `<div class="card"><div class="bd" style="padding:16px"><b>Fehler beim Rendern der Ansicht.</b><pre class="small">${esc(e.stack || e)}</pre></div></div>`;
