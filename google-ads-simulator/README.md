@@ -107,6 +107,13 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
 - **Geführte Hilfe nach Unternehmensvorgaben:** Budget-Tipps berücksichtigen Monatsbudget-Hochrechnung, Sparrunden,
   Sanktionen und Ziele (Kurs „Budget sparen / halten / Wachstum"), schlagen Umschichtungen statt Erhöhungen vor und
   markieren Google-Empfehlungen, die den Vorgaben widersprechen.
+- **🚨 Notfall-Assistent:** Für alle Ereignisse (Serverausfall, Tracking-Ausfall, Bieterkrieg, Rabattaktion, neuer
+  Wettbewerber, Lieferengpass, Personalengpass, Konjunkturdelle, Klickbetrug, Brand-Safety-Vorfall, Richtlinien-Update,
+  Bank: Zinsoffensive, KYC-Rückstau, VideoIdent-Störung, Verifizierung, EZB-Entscheid) sowie Geschäftsleitungs-Notlagen
+  (Sanktionen, Sparrunde, Revision, Abmahnung) gibt es Leitfäden mit Auswirkung, Sofortmaßnahmen, „Nicht tun"-Hinweisen und
+  Schnellaktionen (Kampagnen pausieren/reaktivieren, Budgets temporär senken/wiederherstellen, Thema pausieren, Brand Safety
+  aktivieren, Budgets an Monatsvorgabe anpassen). Hält die Simulation wegen eines Ereignisses an, öffnet sich der
+  Notfall-Assistent automatisch; Chancen (z. B. Mitbewerber pausiert) werden ebenfalls erklärt (`js/emergency.js`).
 - **🧭 Geführte Hilfe für Zielwerte:** Im Gebotsstrategie-Formular Szenarien für Ziel-ROAS/Ziel-CPA mit Kosten, Conversions,
   Umsatz, echtem Deckungsbeitrag, Monatsbudget-Auswirkung und Prüfung gegen Budget, ROAS-Ziel und Break-even – inkl.
   Empfehlung und „Übernehmen".
@@ -167,6 +174,7 @@ js/bank.js       Bank-Modus (Zinsen, EZB, Einlagenbuch, Funnel, Compliance)
 js/goals.js, psych.js, glossary.js, tips.js   Geschäftsleitung, Kaufverhalten, Erklärungen, Tipps
 js/glossary-detail.js, guide.js   Ausführliche Erklärungen, Ziel-ROAS-Rechner, geführte Problemhilfe
 js/overview.js   Übersicht als Baukasten (Karten, Layout, zusätzliche Karten)
+js/emergency.js  Notfall-Assistent: Leitfäden und Schnellaktionen für Ereignisse
 js/academy-content.js, academy.js   Akademie: Kursinhalte und Lern-UI mit Sandbox
 js/ui.js, views-*.js, forms.js, charts.js, app.js   Oberfläche
 test/smoke.mjs   Engine-Test ohne Browser: node test/smoke.mjs

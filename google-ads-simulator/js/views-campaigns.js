@@ -171,7 +171,7 @@
     });
   };
 
-  ACT.fixevent = (el, d) => { const e = APP.S.market.events.find((x) => x.id === d.id); if (e) { R.fixEvent(APP.S, e); UI.toast('Problem behoben: ' + e.name, 'good'); UI.render(); } };
+  ACT.fixevent = (el, d) => { const e = APP.S.market.events.find((x) => x.id === d.id); if (e && !e.done) { R.fixEvent(APP.S, e); UI.toast('Problem behoben: ' + e.name, 'good'); UI.render(); if (el && el.closest && el.closest('#modal-root')) { el.disabled = true; el.textContent = '✓ ' + el.textContent; } } };
 
   // ---------- Empfehlungen ----------
   V.recs = {

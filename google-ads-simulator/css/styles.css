@@ -472,3 +472,5 @@ th.has-tip.sortable { cursor: pointer; }
 .ovopt { display: flex; gap: 8px; align-items: flex-start; padding: 10px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
 .ovopt > span { display: flex; flex-direction: column; gap: 2px; }
 .ovopt:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
+.gd-item.emg.bad { background: color-mix(in srgb, var(--bad-soft) 55%, transparent); }
+.gd-item.chance > summary { color: var(--good); }

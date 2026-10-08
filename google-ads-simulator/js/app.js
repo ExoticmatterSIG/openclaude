@@ -114,7 +114,7 @@
     } else why = simOne();
     const now = performance.now();
     if (now - lastRender > (ms === 0 ? 200 : 0) || why) { UI.render(); lastRender = now; }
-    if (why) { APP.running = false; UI.render(); UI.toast('⏸ Pausiert: ' + why, 'bad'); APPX.showGameOver(); return; }
+    if (why) { APP.running = false; UI.render(); UI.toast('⏸ Pausiert: ' + why, 'bad'); APPX.showGameOver(); if (!APP.S.gameOver && G.GUIDE && G.GUIDE.emergencyModal) G.GUIDE.emergencyModal(APP.S); return; }
     timer = setTimeout(loop, ms);
   }
   APPX.step = function (n) {
@@ -135,6 +135,7 @@
       UI.render();
       if (why) UI.toast('⏸ Angehalten: ' + why, 'bad');
       APPX.showGameOver();
+      if (why && !APP.S.gameOver && G.GUIDE && G.GUIDE.emergencyModal) G.GUIDE.emergencyModal(APP.S);
     };
     chunk();
   };

@@ -364,12 +364,12 @@
     if (!S || !UI.prefs().guide || APP.view === 'academy') return '';
     let list;
     try { list = GD.problems(S).filter((p) => p.views.includes(view)); } catch (e) { console.error(e); return ''; }
-    if (view === 'overview') list = list.filter((p) => p.sev !== 'info');
+    if (view === 'overview') list = list.filter((p) => p.sev !== 'info' || p.emg);
     if (!list.length) return '';
     const shown = list.slice(0, view === 'overview' ? 5 : 8);
     const ico = { bad: '⛔', warn: '⚠️', info: 'ℹ️' };
     return `<div class="card gd-panel"><div class="hd"><h3>🧭 Geführte Hilfe · ${list.length} Hinweis${list.length > 1 ? 'e' : ''}</h3><div class="tools"><a class="small" data-act="gdoff">Für Profis: ausschalten</a></div></div><div class="bd flush">${shown.map((p, i) => `
-      <details class="gd-item ${p.sev}" ${i === 0 && p.sev === 'bad' ? 'open' : ''}><summary>${ico[p.sev]} ${p.title}</summary>
+      <details class="gd-item ${p.sev} ${p.emg ? 'emg' : ''} ${p.chance ? 'chance' : ''}" ${i === 0 && p.sev === 'bad' ? 'open' : ''}><summary>${p.emg ? '' : ico[p.sev] + ' '}${p.title}</summary>
         <div class="gd-body"><p>${p.why}</p><b>So beheben Sie es:</b><ol>${p.steps.map((s) => `<li>${s}</li>`).join('')}</ol>
         ${p.fix.length ? `<div class="gd-fix">${p.fix.map((b) => `<button class="btn sm ${b === p.fix[0] ? 'primary' : ''}" data-act="${b.act}" ${Object.entries(b.data).map(([k, v]) => `data-${k}="${esc(v)}"`).join(' ')}>${b.label}</button>`).join('')}</div>` : ''}</div></details>`).join('')}
       ${list.length > shown.length ? `<div class="small muted" style="padding:8px 16px">${list.length - shown.length} weitere Hinweise in den jeweiligen Bereichen</div>` : ''}</div></div>`;
