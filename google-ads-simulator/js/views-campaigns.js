@@ -52,7 +52,7 @@
       // kritische Ereignisse
       const crit = S.market.events.filter((e) => e.fixable && !e.done && e.start <= S.day && e.end >= S.day);
       const critHtml = crit.map((e) => `<div class="callout bad"><b>${esc(e.name)}</b> – ${esc(e.desc)} <button class="btn sm" data-act="fixevent" data-id="${e.id}">${esc(e.fixable.label)} (${f.eur0(e.fixable.cost)})</button></div>`).join('')
-        + (S.company.cash <= 0 ? `<div class="callout bad"><b>Zahlungsproblem:</b> Ihre Unternehmenskasse ist leer – alle Anzeigen sind gestoppt. <button class="btn sm" data-act="capital">Kapital einzahlen</button></div>` : '');
+        + (S.company.cash <= 0 ? `<div class="callout bad"><b>Zahlungsproblem:</b> Ihre Unternehmenskasse ist leer – alle Anzeigen sind gestoppt. <button class="btn sm" data-act="capital">Kredit aufnehmen</button></div>` : '');
       // Kampagnen
       const camps = UI.scopeCamps();
       const rows = camps.map((c) => ({ id: c.id, c, m: UI.m('camp', c.id) }));
@@ -100,7 +100,10 @@
         }).join('');
         const ms = GL.monthSpend(S), mr = ms / g.monthBudget;
         const dim = U.daysInMonth(M.today(S)), dom = M.today(S).getUTCDate();
-        goalsCard = UI.card('Zielvorgaben der Geschäftsleitung', `<div class="small muted">Zeitraum bis ${U.fmtDate(U.dayToDate(S.startDate, g.periodEnd), false)} · ${f.pct0(elapsed)} vergangen${g.history[0] ? ' · Letzte Note: <b>' + g.history[0].grade + '</b>' : ''}</div>${rowsG}
+        const tr = g.trust ?? 60, lvl = g.sanction || 0;
+        const trustCol = tr >= 50 ? 'var(--good)' : tr >= 35 ? 'var(--s3)' : 'var(--bad)';
+        const trustHtml = `<div style="margin-bottom:10px"><div class="small" style="display:flex;justify-content:space-between"><span><b>Vertrauen der Geschäftsleitung</b></span><span style="color:${trustCol}"><b>${Math.round(tr)}</b> / 100</span></div><div class="bar" style="height:8px"><i style="width:${tr}%;background:${trustCol}"></i></div>${lvl ? `<div class="small" style="margin-top:6px">${UI.pill([GL.LEVELS[lvl].name, lvl >= 3 ? 'bad' : 'warn'])}${g.pip ? ` <b class="down">noch ${g.pip.until - S.day} Tage – Ziel: Vertrauen ≥ 35</b>` : ''}</div>` : ''}</div>`;
+        goalsCard = UI.card('Zielvorgaben der Geschäftsleitung', trustHtml + `<div class="small muted">Zeitraum bis ${U.fmtDate(U.dayToDate(S.startDate, g.periodEnd), false)} · ${f.pct0(elapsed)} vergangen${g.history[0] ? ' · Letzte Note: <b>' + g.history[0].grade + '</b>' : ''}</div>${rowsG}
           <div style="margin-top:12px"><div class="small" style="display:flex;justify-content:space-between"><span>Monatsbudget (Controlling)</span><span class="${mr > (dom - 1) / dim * 1.08 ? 'down' : 'up'}">${f.eur0(ms)} / ${f.eur0(g.monthBudget)}</span></div><div class="bar"><i style="width:${Math.min(100, mr * 100)}%;background:${mr > 1 ? 'var(--bad)' : 'var(--primary)'}"></i></div><div class="tiny muted">Hochrechnung Monatsende: ${f.eur0(ms / Math.max(1, dom - 1) * dim)}</div></div>`, { tools: '<a data-act="nav" data-v="business">Details</a>' });
       }
       const newsCard = UI.card('Neuigkeiten aus dem Markt', news ? `<ul class="feed">${news}</ul>` : '<div class="empty">Noch ruhig im Markt …</div>', { flush: true, tools: '<a data-act="nav" data-v="events">Alle</a>' });

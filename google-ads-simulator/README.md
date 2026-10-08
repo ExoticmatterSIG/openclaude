@@ -59,6 +59,29 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
   „heißes Geld" aus Spitzenzinsen fließt schneller ab, Mitbewerber ziehen nach 14 Tagen Zinsführerschaft nach,
   Geschäftskonten aus „kostenlos"/„ohne Schufa"-Suchen bergen Finanzagenten-Risiken (Geldwäsche-Verdachtsfälle).
 
+## Geschäftsleitung, Sanktionen & Game Over
+
+- **Vertrauen der Geschäftsleitung (0–100):** Monatsreview (zeitanteilige Zielerreichung), Quartalsnote, Budgetdisziplin,
+  Verschuldung, Abmahnungen, Brand-Safety-Vorfälle und Revisionen verändern den Wert.
+- **Sanktionsstufen:** Verwarnung (< 50) → Abmahnung mit Budgetkürzung (< 35) → Bewährungsplan über 45 Tage (< 20) →
+  **Kündigung** bei 0 oder gescheitertem Bewährungsplan. Ab 55 Punkten werden Sanktionen aufgehoben.
+- **Dynamische Ziele:** Mengenziele passen sich monatlich der Marktlage an; nach jedem Quartal wird auf Basis des Ist-Werts plus 8 % geplant.
+  Ad-hoc-Vorgaben: Sparrunde, Wachstumsoffensive, Revision des Reportings, neue Geschäftsführung.
+- **Kredite:** aufnehmen und jederzeit aus der Kasse tilgen, Zinsen werden täglich verbucht.
+  Kasse negativ und Kreditrahmen ausgeschöpft für 30 Tage = **Insolvenz**.
+
+## Kaufverhalten & Marketingpsychologie
+
+- **Trigger im Anzeigentext:** Social Proof, Autorität, Verknappung, Preisanker, Risikoumkehr, Gratis, Call-to-Action – wirken abhängig
+  von Kaufabsicht, Branche (B2B/Finanzen reagieren negativ auf Verknappung) und Markenbekanntheit; überladene Texte wirken reißerisch,
+  Dauer-Verknappung verliert Glaubwürdigkeit und ist abmahnfähig. Analyse in „Conversion & Psychologie".
+- **Shop & Landingpage:** Bewertungen, Gütesiegel, Kauf auf Rechnung, Express-Checkout, Gastbestellung, Gratisversand-Schwelle,
+  Countdown, erfundener Social Proof, Exit-Gutschein, Streichpreise (PAngV 30-Tage-Regel), Live-Chat, Rechner, eID, Autofill –
+  mit Kosten, Nebenwirkungen (Retouren, weniger Wiederkäufe) und Abmahnrisiko.
+- **Verkäuferbewertungen:** Sterne entstehen aus Kundenzufriedenheit (Retouren, Lieferprobleme, Dark Patterns) und erscheinen ab 100 Rezensionen in Anzeigen.
+- **Kundenwert:** Wiederkäufe bzw. Verlängerungen bringen später Umsatz ohne Werbekosten.
+- **Zahltag-Effekt** im Konsumbereich, **Rückkehrer** (Anzeigenklicks führen später zu Markensuchen) und organische Markenconversions.
+
 ## Bank-Modus: Passivgeschäft Geschäftskunden (VW Bank)
 
 Eigene Branche mit realistischen Mechaniken für SEA im Einlagengeschäft:

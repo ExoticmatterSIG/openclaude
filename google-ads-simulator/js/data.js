@@ -98,7 +98,7 @@
     {
       id: 'saas', name: 'B2B-SaaS: Projektmanagement-Software', icon: '💼', goal: 'leads',
       desc: 'Hohe CPCs, lange Entscheidungszyklen, Leads mit Wert für Pipeline. Wochenenden sind schwach.',
-      aov: 190, aovSigma: 0.6, margin: 0.8, baseCvr: 0.045, bgDensity: 2.5, dispCvr: 0.6, baseCtr: 0.058, cpcScale: 1,
+      aov: 125, aovSigma: 0.6, margin: 0.8, baseCvr: 0.045, bgDensity: 2.5, dispCvr: 0.6, baseCtr: 0.058, cpcScale: 1,
       displayCpm: 6.5, cpv: 0.06, displayInventory: 250000, hours: 'b2b',
       lag: [0.3, 0.14, 0.1, 0.08, 0.07, 0.06, 0.05, 0.05, 0.04, 0.03, 0.03, 0.02, 0.01, 0.01, 0.01],
       devices: { mobile: { share: 0.32, ctr: 0.9, cvr: 0.55 }, desktop: { share: 0.63, ctr: 1.05, cvr: 1.2 }, tablet: { share: 0.05, ctr: 0.9, cvr: 0.8 } },

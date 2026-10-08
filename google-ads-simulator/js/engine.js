@@ -128,7 +128,7 @@
       case 'core_update': for (const c of S.competitors) c.qs = U.clamp(c.qs + rng.int(-1, 1), 3, 10); break;
       case 'brand_safety':
         S.company.awareness = Math.max(0.01, S.company.awareness - 0.03);
-        if (S.goals) S.goals.penalty = (S.goals.penalty || 0) + 10;
+        if (S.goals) { S.goals.penalty = (S.goals.penalty || 0) + 10; G.GOALS.changeTrust(S, -10, 'Brand-Safety-Vorfall'); }
         break;
       case 'policy_update':
         for (const ad of S.ads) if (ad.status !== 'removed' && rng.chance(0.35)) { M.reviewAd(S, ad, true); if (ad.policy.status === 'limited' && rng.chance(0.4)) { ad.policy.status = 'disapproved'; ad.policy.reasons.push('Neue Richtlinie: Werbeaussagen nicht belegt'); } }
@@ -225,6 +225,7 @@
   function prepareDay(S, rng, date) {
     const ind = M.ind(S), fx = S.market.fx, day = S.day;
     const ctx = { date, dow: U.dowMon0(date), month: date.getUTCMonth(), fx, ind, camps: [], cands: {}, shopCands: {}, inv: [], comps: [], compsByQ: {}, revenue: 0, realConv: 0, other: 0, assist: [], visitors: 0, carts: 0, buyers: 0, awareImps: 0, mktClicks: 0, mktCost: 0, playerClicks: 0 };
+    ctx.psy = G.PSY ? G.PSY.prep(S, ctx) : { cvr: 1, aov: 1, fee: 0, qual: 1, ret: 0, repeat: 1, month: 0, starsCtr: 1 };
     S.account.paymentOk = S.company.cash > 0;
     ctx.bank = !!ind.bank;
     ctx.prodCvr = ind.bank ? G.BANK.cvrMults(S) : {};
@@ -431,14 +432,15 @@
       if (ca.category === 'App-Installation' && opts.app) rate *= 3;
       const n = rng.binomial(clicks, U.clamp(rate, 0, 0.95));
       for (let i = 0; i < n; i++) {
-        const value = ca.value === 'dynamic' ? ctx.aov * rng.logn(ind.aovSigma) : +ca.value || 0;
+        const value = ca.value === 'dynamic' ? ctx.aov * rng.logn(ind.aovSigma) * ctx.psy.aov * (opts.psy ? opts.psy.aov : 1) : +ca.value || 0;
         const recorded = rng() < ctx.consent;
         const real = ca.primary;
         let lag = drawLag(rng, ind.lag) + S.account.reportingDelay;
         const assist = recorded && ca.primary && ctx.assistP > 0 && opts.network !== 'display' && rng() < ctx.assistP ? rng.weighted(ctx.assist, (a) => a.w).c : null;
-        const entry = { due: S.day + lag, day: S.day, keys, prim: ca.primary ? 1 : 0, value, recorded, real, rv: real ? value * fx.capacity * (1 - (ind.returns || 0)) : 0, assist: assist ? ['camp|' + assist.id] : null };
+        const entry = { due: S.day + lag, day: S.day, keys, prim: ca.primary ? 1 : 0, value, recorded, real, rv: real ? value * fx.capacity * (1 - Math.min(0.7, (ind.returns || 0) + ctx.psy.ret + (opts.psy ? opts.psy.ret : 0))) : 0, assist: assist ? ['camp|' + assist.id] : null };
         if (ca.category === 'Anruf') bufVec(buf, keys[1])[I.calls] += 1;
         if (lag === 0) applyConv(S, buf, entry, true); else S.pending.push(entry);
+        if (real && G.PSY) G.PSY.onReal(S, ctx, rng, entry.rv);
         if (ca.primary && opts.campRt) opts.campRt.d.conv += recorded ? 1 : 0;
       }
       if (!ca.primary && ca.category === 'In den Einkaufswagen') ctx.carts += n;
@@ -454,7 +456,7 @@
     for (const ca of S.convActions) {
       const enabled = ca.status === 'enabled';
       if (!enabled && !ca.qualified) continue;
-      const rate = cvr * ca.rate * (ca.qualified ? bizEff * (ca.qRate || 1) * (fx.kyc || 1) : mix.factor);
+      const rate = cvr * ca.rate * (ca.qualified ? bizEff * (ca.qRate || 1) * (fx.kyc || 1) * ctx.psy.qual : mix.factor);
       const n = rng.binomial(clicks, U.clamp(rate, 0, 0.95));
       if (!n) continue;
       if (ca.appSubmit) B.onApplications(S, n, rng.binomial(n, mix.privShare));
@@ -504,7 +506,7 @@
     userLift = Math.min(userLift, 3);
     const compLift = Math.pow(userLift, 0.65); // Mitbewerber mit Smart Bidding bieten auf wertvolle Nutzer ebenfalls höher
     const hourCvr = D.HOUR_CVR[ind.hours][h];
-    const baseCvrCtx = ind.baseCvr * locDef.cvr * devDef.cvr * ind.age[age] * ind.gender[gender] * hourCvr * userLift * S.market.cvrIdx * fx.cvr * (fx.themeCvr[q.theme] || 1) * ctx.priceCvr * fx.playerCvr * (fx.playerDown ? 0 : 1) * (ctx.prodCvr[q.theme] || 1);
+    const baseCvrCtx = ind.baseCvr * locDef.cvr * devDef.cvr * ind.age[age] * ind.gender[gender] * hourCvr * userLift * S.market.cvrIdx * fx.cvr * (fx.themeCvr[q.theme] || 1) * ctx.priceCvr * fx.playerCvr * (fx.playerDown ? 0 : 1) * (ctx.prodCvr[q.theme] || 1) * ctx.psy.cvr;
     const brandCvr = q.brand === 'player' ? (ind.bank ? 1 : 2.6) : q.brand ? 0.22 : 1;
 
     const eligCamps = [];
@@ -679,10 +681,12 @@
       for (let i = 0; i < n; i++) { const o = B.drawOpening(S, rng, null, q); B.onOpen(S, o); v[I.rconv] += 1; v[I.rval] += o.value; }
       return;
     }
-    const n = rng.binomial(clicks, U.clamp(cvr, 0, 0.9));
+    const primRate = U.sum(S.convActions.filter((c) => c.primary && c.category !== 'App-Installation'), (c) => c.rate) || 1;
+    const n = rng.binomial(clicks, U.clamp(cvr * Math.min(primRate, 1.2), 0, 0.9));
     for (let i = 0; i < n; i++) {
       const val = ctx.aov * rng.logn(ind.aovSigma) * fx.capacity * (1 - (ind.returns || 0));
       v[I.rconv] += 1; v[I.rval] += val; ctx.revenue += val; ctx.realConv += 1; ctx.buyers += 1;
+      if (G.PSY) G.PSY.onReal(S, ctx, rng, val);
     }
   }
 
@@ -703,6 +707,8 @@
     }
     const ad = cand.ag.rt.ads.length ? rng.pick(cand.ag.rt.ads) : null;
     const fatigue = ad ? E.fatigue(ad) : 1;
+    const psy = ad && G.PSY ? G.PSY.adProfile(S, ad, q) : null;
+    bankCtr *= (psy ? psy.ctr : 1) * ctx.psy.starsCtr;
     const ctr = U.clamp(baseline * Math.pow(cand.rel, 0.5) * M.strengthCtr(str) * assCtr * u.devDef.ctr * fx.ctr * aware * Math.min(u.userCtr, 1.6) * (cand.pmax ? 0.95 : 1) * bankCtr * fatigue, 0, 0.6);
     if (ad) ad.fat = (ad.fat || 0) + w;
     rt.d.impw += w; if (best.top) rt.d.top += w; if (best.top && best.pos === 0) rt.d.abs += w;
@@ -729,7 +735,7 @@
       if (best.top) v[I.top] += w; if (best.top && best.pos === 0) v[I.abs] += w;
     }
     ctx.visitors += clicks;
-    convert(S, rng, ctx, buf, keys, clicks, best.cvr, { ass: rt.ass, device: u.device, campRt: rt, network: 'search', q, b2b: cand.ag.rt.b2b });
+    convert(S, rng, ctx, buf, keys, clicks, best.cvr * (psy ? psy.cvr : 1), { ass: rt.ass, device: u.device, campRt: rt, network: 'search', q, b2b: cand.ag.rt.b2b, psy });
     // Suchnetzwerk-Partner
     if (c.networks.partners && c.type === 'search') {
       const pw = w * 0.18;
@@ -869,7 +875,7 @@
       const avail = P.avail * share * hs * (net === 'display' && c.display.excludeApps ? 0.65 : 1);
       if (avail < 1) continue;
       const ctrE = baseCtr * qC * P.ctrL * fx.ctr * (net === 'youtube' && c.type !== 'video' ? 0.8 : 1) * P.fat * appCtr;
-      const cvrE = ind.baseCvr * (net === 'search' ? 1.3 : net === 'discover' ? 0.22 : net === 'youtube' ? 0.12 : 0.15) * (ind.dispCvr || 1) * appCvr * P.lift * (0.6 + 0.8 * P.lp) * S.market.cvrIdx * fx.cvr * ctx.priceCvr * fx.playerCvr * (fx.playerDown ? 0 : 1);
+      const cvrE = ind.baseCvr * (net === 'search' ? 1.3 : net === 'discover' ? 0.22 : net === 'youtube' ? 0.12 : 0.15) * (ind.dispCvr || 1) * appCvr * P.lift * (0.6 + 0.8 * P.lp) * S.market.cvrIdx * fx.cvr * ctx.priceCvr * fx.playerCvr * (fx.playerDown ? 0 : 1) * ctx.psy.cvr;
       const b = c.bidStrategy, st = b.type;
       let bidCpm;
       const pc = cvrE * rt.bias;
@@ -1068,7 +1074,10 @@
     const aw = S.company.awareness;
     S.company.awareness = U.clamp(aw * 0.9965 + (ctx.awareImps / 1e6) * 0.012 * (1 - aw) + (ctx.playerClicks / 1e5) * 0.01, 0.01, 0.6);
     // Markenvolumen folgt der Bekanntheit
-    for (const q of S.queries) if (q.brand === 'player') q.vol = Math.round(q.baseVol * (ctx.bank ? 1 : 0.4 + S.company.awareness * 10) * (S.market.fx.brandVol || 1));
+    if (G.PSY) G.PSY.daily(S, ctx, rng);
+    const brandBase = U.sum(S.queries.filter((q) => q.brand === 'player'), (q) => q.baseVol) || 1;
+    const halo = (S.psy && S.psy.halo) || 0; // Rückkehrer suchen gezielt nach der Marke
+    for (const q of S.queries) if (q.brand === 'player') q.vol = Math.round((q.baseVol * (ctx.bank ? 1 : 0.4 + S.company.awareness * 10) + (halo * q.baseVol) / brandBase) * (S.market.fx.brandVol || 1));
     if (ctx.bank) G.BANK.daily(S, ctx, rng);
 
     // GuV & Kasse
@@ -1077,11 +1086,11 @@
     const fixed = S.company.fixedPerDay || 0;
     const other = (S._otherCosts || 0) + fixed;
     S._otherCosts = 0;
-    S.pnl[day] = { rev: ctx.revenue, gross, ads: cost, other, profit: gross - cost - other, conv: ctx.realConv };
+    S.pnl[day] = { rev: ctx.revenue, gross, ads: cost, other, profit: gross - cost - other, conv: ctx.realConv, repeat: ctx.repeatRev || 0 };
     const wasOk = S.company.cash > 0;
     S.company.cash += gross - cost - other;
     if (wasOk && S.company.cash <= 0) {
-      S.alerts.unshift({ day, level: 'bad', text: 'Zahlung abgelehnt: Ihr Unternehmenskonto ist leer. Alle Anzeigen sind gestoppt, bis Sie Kapital einzahlen.' });
+      S.alerts.unshift({ day, level: 'bad', text: 'Zahlung abgelehnt: Ihr Unternehmenskonto ist leer. Alle Anzeigen sind gestoppt. Nehmen Sie einen Kredit auf oder reduzieren Sie die Kosten – nach 30 Tagen ohne Liquidität droht die Insolvenz.' });
       S._pauseRequest = 'Zahlungsproblem';
     }
     // Markthistorie
@@ -1140,6 +1149,7 @@
 
   // ---------- Öffentliche Simulation ----------
   E.simulateDay = function (S) {
+    if (S.gameOver) return null;
     const rng = U.makeRng(S.rngState);
     const date = M.today(S);
     const diff = M.DIFFICULTY[S.settings.difficulty] || M.DIFFICULTY.normal;
@@ -1185,9 +1195,9 @@
     processPending(S, buf, ctx);
     commit(S, buf, S.day);
     endOfDay(S, rng, ctx);
-    S.rngState = rng.getState();
     S.day++;
-    if (G.GOALS) G.GOALS.daily(S);
+    if (G.GOALS) G.GOALS.daily(S, rng);
+    S.rngState = rng.getState();
     // Anzeigen, deren Prüfung abgeschlossen ist
     for (const ad of S.ads) if (ad.reviewUntil !== null && ad.reviewUntil <= S.day) {
       ad.reviewUntil = null;

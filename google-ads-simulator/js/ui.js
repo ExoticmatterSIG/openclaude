@@ -191,7 +191,7 @@
     ['Ausrichtung', [['audiences', '👥', 'Zielgruppen'], ['demographics', '🎂', 'Demografie'], ['locations', '📍', 'Standorte'], ['schedule', '🕒', 'Werbezeitplaner'], ['devices', '📱', 'Geräte']]],
     ['Statistiken & Markt', [['auction', '⚔️', 'Auktionsdaten'], ['market', '📈', 'Markt & Wettbewerb'], ['events', '📰', 'News & Ereignisse'], ['pmaxinsights', '⚡', 'PMax-Kanalbericht']]],
     ['Tools', [['planner', '🧭', 'Keyword-Planer'], ['conversions', '🎯', 'Conversions'], ['products', '🛒', 'Merchant Center'], ['experiments', '🧪', 'Tests'], ['reports', '📊', 'Berichte'], ['history', '🕘', 'Änderungsverlauf']]],
-    ['Unternehmen', [['conditions', '🏦', 'Konditionen & Zinsen'], ['business', '🏢', 'Unternehmen & GuV'], ['billing', '💳', 'Abrechnung'], ['settings', '⚙️', 'Einstellungen']]],
+    ['Unternehmen', [['cro', '🧠', 'Conversion & Psychologie'], ['conditions', '🏦', 'Konditionen & Zinsen'], ['business', '🏢', 'Unternehmen & GuV'], ['billing', '💳', 'Abrechnung'], ['settings', '⚙️', 'Einstellungen']]],
   ];
   UI.renderNav = function () {
     const S = APP.S;

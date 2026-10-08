@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'js');
 const ctx = vm.createContext({ console, Intl, Math, Date, JSON, Map, Set });
-for (const f of ['util.js', 'data.js', 'model.js', 'engine.js', 'recs.js', 'bank.js', 'goals.js']) {
+for (const f of ['util.js', 'data.js', 'model.js', 'engine.js', 'recs.js', 'bank.js', 'goals.js', 'psych.js']) {
   if (fs.existsSync(path.join(dir, f))) vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
 const GA = vm.runInContext('globalThis.GA', ctx);

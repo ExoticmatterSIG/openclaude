@@ -80,9 +80,17 @@
   }
 
   function simOne() {
+    if (APP.S.gameOver) return 'Spiel beendet';
     E.simulateDay(APP.S);
     return afterDay();
   }
+  APPX.showGameOver = function () {
+    const S = APP.S, go = S.gameOver;
+    if (!go || APP._goShown === go.day) return;
+    APP._goShown = go.day;
+    const title = go.kind === 'insolvent' ? '💸 Insolvenz' : '📦 Gekündigt';
+    UI.modal(title, `<p>${U.esc(go.text)}</p><dl class="kv"><dt>Durchgehalten</dt><dd>${go.day} Tage</dd><dt>Gesamtergebnis</dt><dd class="${go.profit >= 0 ? 'up' : 'down'}">${f.eur0(go.profit)}</dd><dt>Bewertete Quartale</dt><dd>${go.quarters}</dd><dt>Punktzahl</dt><dd>${go.score}</dd></dl><div class="callout warn" style="margin-top:12px">Sie können das Konto weiter ansehen und analysieren, aber nicht weiter simulieren.</div>`, { static: true, footer: '<button class="btn" data-act="mclose">Konto ansehen</button><button class="btn primary" data-act="newgame">Neues Spiel</button>' });
+  };
 
   APPX.play = function () {
     if (APP.running) return APPX.pause();
@@ -106,7 +114,7 @@
     } else why = simOne();
     const now = performance.now();
     if (now - lastRender > (ms === 0 ? 200 : 0) || why) { UI.render(); lastRender = now; }
-    if (why) { APP.running = false; UI.render(); UI.toast('⏸ Pausiert: ' + why, 'bad'); return; }
+    if (why) { APP.running = false; UI.render(); UI.toast('⏸ Pausiert: ' + why, 'bad'); APPX.showGameOver(); return; }
     timer = setTimeout(loop, ms);
   }
   APPX.step = function (n) {
@@ -126,6 +134,7 @@
       bar.remove(); APP.busy = false;
       UI.render();
       if (why) UI.toast('⏸ Angehalten: ' + why, 'bad');
+      APPX.showGameOver();
     };
     chunk();
   };
@@ -199,6 +208,7 @@
         document.getElementById('sidenav').style.display = '';
         APP.alertsSeen = APP.S.day;
         UI.render(true);
+        APPX.showGameOver();
       } catch (e) { UI.toast('Spielstand konnte nicht geladen werden: ' + e.message, 'bad'); }
     },
   });
