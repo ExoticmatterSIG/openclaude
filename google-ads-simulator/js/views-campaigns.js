@@ -117,10 +117,13 @@
           <div style="margin-top:12px"><div class="small" style="display:flex;justify-content:space-between"><span>Monatsbudget (Controlling)</span><span class="${mr > (dom - 1) / dim * 1.08 ? 'down' : 'up'}">${f.eur0(ms)} / ${f.eur0(g.monthBudget)}</span></div><div class="bar"><i style="width:${Math.min(100, mr * 100)}%;background:${mr > 1 ? 'var(--bad)' : 'var(--primary)'}"></i></div><div class="tiny muted">Hochrechnung Monatsende: ${f.eur0(ms / Math.max(1, dom - 1) * dim)}</div></div>`, { tools: '<a data-act="nav" data-v="business">Details</a>' });
       }
       const newsCard = UI.card('Neuigkeiten aus dem Markt', news ? `<ul class="feed">${news}</ul>` : '<div class="empty">Noch ruhig im Markt …</div>', { flush: true, tools: '<a data-act="nav" data-v="events">Alle</a>' });
-      return UI.head('Übersicht', `<button class="btn primary" data-act="newcampaign">＋ Neue Kampagne</button>`) + critHtml
-        + `<div class="card"><div class="kpis">${tiles}</div><div class="bd" style="padding-top:12px">${chart}${prev ? `<div class="tiny muted" style="margin-top:4px">Gestrichelt: ${esc(UI.COMPARE[APP.compare])} (${UI.cmpLabel()})</div>` : ''}</div></div>`
-        + UI.monthCompare(dim, id)
-        + `<div class="grid g21"><div>${UI.card('Kampagnen', table, { flush: true, tools: '<a data-act="nav" data-v="campaigns">Alle Kampagnen</a>' })}${newsCard}</div><div>${goalsCard}${scoreCard}${marketCard}${pnl}</div></div>`;
+      const W = {
+        kpi: () => `<div class="card"><div class="kpis">${tiles}</div><div class="bd" style="padding-top:12px">${chart}${prev ? `<div class="tiny muted" style="margin-top:4px">Gestrichelt: ${esc(UI.COMPARE[APP.compare])} (${UI.cmpLabel()})</div>` : ''}</div></div>`,
+        month: () => UI.monthCompare(dim, id),
+        camps: () => UI.card('Kampagnen', table, { flush: true, tools: '<a data-act="nav" data-v="campaigns">Alle Kampagnen</a>' }),
+        news: () => newsCard, goals: () => goalsCard, score: () => scoreCard, market: () => marketCard, pnl: () => pnl,
+      };
+      return UI.head('Übersicht', `<button class="btn" data-act="ovedit">${APP.ovEdit ? '✓ Fertig' : '✎ Übersicht anpassen'}</button><button class="btn primary" data-act="newcampaign">＋ Neue Kampagne</button>`) + critHtml + UI.ovLayout(W, dim, id);
     },
   };
   ACT.kpichart = (el, d) => { const k = d.k; if (APP.chart[0] === k) return; APP.chart = [k, APP.chart[0]]; UI.renderMain(true); };
@@ -176,7 +179,7 @@
       const S = APP.S, recs = APP._recs || [];
       const score = R.score(S, recs);
       const cats = [...new Set(recs.map((r) => r.cat))];
-      const body = cats.map((cat) => UI.card(cat, recs.filter((r) => r.cat === cat).map((r) => `<div class="rec"><div class="ic">${r.icon}</div><div class="body"><div class="ttl">${esc(r.title)}</div><div class="small muted" style="margin:4px 0 8px">${esc(r.desc)}</div><div class="acts">${r.apply ? `<button class="btn sm primary" data-act="recapply" data-id="${esc(r.id)}">Übernehmen</button>` : ''}${r.view ? `<button class="btn sm" data-act="${r.view === 'wizard' ? 'newcampaign' : 'nav'}" data-v="${r.view}">Ansehen</button>` : ''}<button class="btn sm ghost" data-act="recdismiss" data-id="${esc(r.id)}">Ablehnen</button></div></div><div class="imp">+${r.impact} %</div></div>`).join(''), { flush: true })).join('');
+      const body = cats.map((cat) => UI.card(cat, recs.filter((r) => r.cat === cat).map((r) => `<div class="rec"><div class="ic">${r.icon}</div><div class="body"><div class="ttl">${esc(r.title)}</div><div class="small muted" style="margin:4px 0 8px">${esc(r.desc)}</div>${G.GUIDE ? G.GUIDE.recNote(S, r) : ''}<div class="acts">${r.apply ? `<button class="btn sm primary" data-act="recapply" data-id="${esc(r.id)}">Übernehmen</button>` : ''}${r.view ? `<button class="btn sm" data-act="${r.view === 'wizard' ? 'newcampaign' : 'nav'}" data-v="${r.view}">Ansehen</button>` : ''}<button class="btn sm ghost" data-act="recdismiss" data-id="${esc(r.id)}">Ablehnen</button></div></div><div class="imp">+${r.impact} %</div></div>`).join(''), { flush: true })).join('');
       return UI.head('Empfehlungen', recs.some((r) => r.apply) ? '<button class="btn" data-act="recall">Alle übernehmen</button>' : '', { noScope: true, noRange: true })
         + `<div class="card"><div class="bd" style="padding:16px;display:flex;gap:20px;align-items:center">${C.ring(score, 110)}<div><h3>Optimierungsfaktor</h3><div class="muted small" style="max-width:640px">Geschätzte Leistungsfähigkeit Ihres Kontos. Empfehlungen basieren auf den Daten der letzten 14–30 Tage. Wie im echten Google Ads gilt: Nicht jede Empfehlung ist für Ihre Ziele sinnvoll – prüfen Sie z. B. Budgeterhöhungen gegen Ihre Marge.</div><label class="chk small" style="margin-top:8px"><input type="checkbox" data-chg="autoapply" ${S.account.autoApply ? 'checked' : ''}> Empfehlungen wöchentlich automatisch anwenden</label></div></div></div>`
         + (recs.length ? body : '<div class="card"><div class="empty">🎉 Keine offenen Empfehlungen.</div></div>');

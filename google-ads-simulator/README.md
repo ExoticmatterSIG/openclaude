@@ -101,6 +101,15 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
   Stunde sowie Tag & Stunde. Abweichung: ganze Stunden statt 15-Minuten-Schritten.
 - **Tipps mit Umsetzung:** Jeder Tipp zeigt vorab „Worum geht's?", nach dem Kauf eine Schritt-für-Schritt-Umsetzung und
   „Springe zu"-Buttons in die passenden Bereiche.
+- **Übersicht als Baukasten:** „✎ Übersicht anpassen" – 16 Karten (u. a. Kennzahlen & Diagramm, Geführte Hilfe,
+  Monatsvergleich, Budget-Pacing, Top-Keywords, Suchbegriffe ohne Conversion, Geräte, Tageszeiten, Mitbewerber, Messqualität)
+  ein-/ausblenden, per Ziehen oder Pfeilen anordnen, halbe/volle Breite; Layout und KPI-Auswahl bleiben gespeichert.
+- **Geführte Hilfe nach Unternehmensvorgaben:** Budget-Tipps berücksichtigen Monatsbudget-Hochrechnung, Sparrunden,
+  Sanktionen und Ziele (Kurs „Budget sparen / halten / Wachstum"), schlagen Umschichtungen statt Erhöhungen vor und
+  markieren Google-Empfehlungen, die den Vorgaben widersprechen.
+- **🧭 Geführte Hilfe für Zielwerte:** Im Gebotsstrategie-Formular Szenarien für Ziel-ROAS/Ziel-CPA mit Kosten, Conversions,
+  Umsatz, echtem Deckungsbeitrag, Monatsbudget-Auswirkung und Prüfung gegen Budget, ROAS-Ziel und Break-even – inkl.
+  Empfehlung und „Übernehmen".
 - **Ziel-ROAS-/Ziel-CPA-Rechner** im Gebotsstrategie-Formular: Ist-Wert in %, Break-even, Bedeutung des eingegebenen Werts
   und Einordnung (zu streng, unter Break-even, realistisch).
 - **Geführte Hilfe:** Bei Problemen (abgelehnte Anzeigen mit konkreter Textstelle, schwache Anzeigenstärke, fehlende Assets,
@@ -157,6 +166,7 @@ js/recs.js       Empfehlungen & Unternehmensaktionen
 js/bank.js       Bank-Modus (Zinsen, EZB, Einlagenbuch, Funnel, Compliance)
 js/goals.js, psych.js, glossary.js, tips.js   Geschäftsleitung, Kaufverhalten, Erklärungen, Tipps
 js/glossary-detail.js, guide.js   Ausführliche Erklärungen, Ziel-ROAS-Rechner, geführte Problemhilfe
+js/overview.js   Übersicht als Baukasten (Karten, Layout, zusätzliche Karten)
 js/academy-content.js, academy.js   Akademie: Kursinhalte und Lern-UI mit Sandbox
 js/ui.js, views-*.js, forms.js, charts.js, app.js   Oberfläche
 test/smoke.mjs   Engine-Test ohne Browser: node test/smoke.mjs

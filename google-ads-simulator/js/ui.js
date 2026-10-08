@@ -332,7 +332,7 @@
     const y = window.scrollY;
     try {
       main.innerHTML = (APP.sandbox && G.ACAD ? G.ACAD.banner() : '') + v.render();
-      const gp = G.GUIDE ? G.GUIDE.panel(APP.view) : '';
+      const gp = G.GUIDE && APP.view !== 'overview' ? G.GUIDE.panel(APP.view) : '';
       if (gp) { const ph = main.querySelector(':scope > .pagehead'); if (ph) ph.insertAdjacentHTML('afterend', gp); else main.insertAdjacentHTML('afterbegin', gp); }
     } catch (e) {
       console.error(e);

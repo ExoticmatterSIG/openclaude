@@ -57,6 +57,59 @@
   };
   ACT.sheetclose = () => UI.closeSheet();
 
+  // ---------- Unternehmenskontext: Vorgaben der Geschäftsleitung, Budget-Spielraum, Marge, Ziele ----------
+  GD.ctx = function (S) {
+    const g = S.goals, GL = G.GOALS, mg = margin();
+    const date = M.today(S), dim = U.daysInMonth(date), dom = date.getUTCDate(), daysLeft = dim - dom + 1;
+    const ms = g && GL ? GL.monthSpend(S) : 0;
+    const l7 = E.sumRange(S, 'acct', 'all', Math.max(0, S.day - 7), S.day - 1)[E.I.cost] / Math.max(1, Math.min(7, S.day));
+    const budgets = S.campaigns.filter((c) => c.status === 'enabled' && !c.isTrial).reduce((a, c) => a + c.budget, 0);
+    const proj = ms + l7 * daysLeft;
+    const mb = g ? g.monthBudget : null;
+    const r30 = [Math.max(0, S.day - 30), S.day - 1];
+    const acct = UI.ext(E.derive(E.sumRange(S, 'acct', 'all', r30[0], r30[1])));
+    const measure = acct.rconv > 0 ? U.clamp(acct.conv / acct.rconv, 0.3, 1.2) : 0.85; // Messquote: gemessen ÷ echt
+    const recent = (name) => !!(g && g.events && g.events.some((e) => e.name === name && S.day - e.day <= 45));
+    const ctx = { g, mg, ms, l7, budgets, proj, mb, daysLeft, dim, dom, acct, measure, spar: recent('Sparrunde'), push: recent('Wachstumsoffensive'), sanction: g ? g.sanction || 0 : 0, targets: [] };
+    ctx.room = mb ? mb - proj : Infinity;
+    ctx.roomDaily = mb ? (mb - proj) / Math.max(1, daysLeft) : Infinity;
+    ctx.maxDaily = mb ? Math.max(0, (mb - ms) / Math.max(1, daysLeft)) : Infinity; // max. Tagesausgaben bis Monatsende
+    if (g && GL) {
+      const prog = GL.progress(S), elapsed = U.clamp((S.day - g.periodStart) / Math.max(1, g.periodEnd - g.periodStart + 1), 0, 1);
+      ctx.targets = g.targets.map((t) => { const v = prog[t.id]; const met = GL.met(t, v); const onTrack = t.dir === 'min' ? U.div(v || 0, t.value) >= elapsed * 0.95 : met; return { ...t, v, met, onTrack }; });
+    }
+    const T = (id) => ctx.targets.find((t) => t.id === id);
+    ctx.roasGoal = T('rroas') ? T('rroas').value : null; // echter ROAS
+    ctx.roasGoalMeasured = ctx.roasGoal ? ctx.roasGoal * ctx.measure : null; // als gemessener ROAS (Spalte Conv.-Wert/Kosten)
+    ctx.volBehind = ctx.targets.some((t) => ['conv', 'vol', 'accts'].includes(t.id) && !t.onTrack);
+    ctx.profitBehind = ctx.targets.some((t) => t.id === 'profit' && !t.onTrack);
+    ctx.mode = !g ? 'free' : ctx.spar || proj > mb * 0.98 || ctx.sanction >= 2 ? 'save' : ctx.room > mb * 0.08 && (ctx.volBehind || ctx.push) ? 'grow' : 'hold';
+    return ctx;
+  };
+  // Hinweis an Google-Empfehlungen, wenn sie den internen Vorgaben widersprechen
+  GD.recNote = function (S, r) {
+    if (!UI.prefs().guide || !S.goals) return '';
+    const cx = GD.ctx(S);
+    const spendUp = /^(budget_|target_|broad_|firstpage_|pmax$)/.test(r.id);
+    if (spendUp && cx.mode === 'save') return `<div class="callout warn small" style="margin:6px 0">🏢 Widerspricht Ihren Vorgaben: Kurs „Budget sparen" (Hochrechnung ${f.eur0(cx.proj)} von ${f.eur0(cx.mb)}${cx.spar ? ', Sparrunde aktiv' : ''}). Google kennt Ihr internes Budget nicht – diese Empfehlung würde die Ausgaben erhöhen.</div>`;
+    if (/^budget_/.test(r.id) && cx.room > 0 && cx.room < Infinity) return `<div class="callout small" style="margin:6px 0">🏢 Spielraum im Monatsbudget: ${f.eur0(cx.room)} (≈ ${f.eur0(cx.roomDaily)}/Tag). Prüfen Sie, ob die vorgeschlagene Erhöhung hineinpasst.</div>`;
+    return '';
+  };
+  GD.modeText = { save: 'Budget sparen', hold: 'Budget halten', grow: 'Wachstum mit Budget-Spielraum', free: 'keine Vorgaben' };
+  GD.ctxHtml = function (S, cx = GD.ctx(S)) {
+    if (!cx.g) return '';
+    const rows = [
+      ['Monatsbudget (Controlling)', `${f.eur0(cx.mb)} · bisher ${f.eur0(cx.ms)} · Hochrechnung <b class="${cx.proj > cx.mb ? 'down' : 'up'}">${f.eur0(cx.proj)}</b>`],
+      ['Spielraum bis Monatsende', cx.room >= 0 ? `<span class="up">${f.eur0(cx.room)}</span> (≈ ${f.eur0(cx.roomDaily)}/Tag zusätzlich)` : `<span class="down">${f.eur0(-cx.room)} Überschreitung droht</span> – Tagesausgaben auf max. ${f.eur0(cx.maxDaily)} senken`],
+      ['Marge / Break-even-ROAS', cx.mg ? `${f.pct0(cx.mg)} / ${f.int(100 / cx.mg)} %` : '–'],
+    ];
+    if (cx.roasGoal) rows.push(['ROAS-Ziel der Geschäftsleitung', `echt ≥ ${f.num2(cx.roasGoal)} ≈ gemessen ≥ <b>${f.int(cx.roasGoalMeasured * 100)} %</b> <span class="small muted">(Messquote ${f.pct0(cx.measure)})</span>`]);
+    for (const t of cx.targets.filter((t) => t.id !== 'rroas')) rows.push([t.name, `${G.GOALS.fmt(t, t.v)} / ${t.dir === 'min' ? '≥' : '≤'} ${G.GOALS.fmt(t, t.value)} ${t.onTrack ? '<span class="up">✓ im Plan</span>' : '<span class="down">✗ hinter Plan</span>'}`]);
+    if (cx.spar) rows.push(['Sparrunde', '<span class="down">aktiv – die Geschäftsleitung erwartet Zurückhaltung</span>']);
+    if (cx.sanction) rows.push(['Sanktionsstufe', `<span class="down">${esc(G.GOALS.LEVELS[cx.sanction].name)}</span>`]);
+    return `<div class="callout ${cx.mode === 'save' ? 'warn' : cx.mode === 'grow' ? 'good' : ''}"><b>🏢 Vorgaben der Geschäftsleitung · Kurs: ${GD.modeText[cx.mode]}</b><dl class="kv" style="margin-top:6px">${rows.map(([a, b]) => `<dt>${esc(a)}</dt><dd>${b}</dd>`).join('')}</dl></div>`;
+  };
+
   // ---------- Rechner für Ziel-ROAS / Ziel-CPA im Gebotsstrategie-Formular ----------
   function campMetrics() {
     const S = APP.S, r = [Math.max(0, S.day - 30), S.day - 1];
@@ -73,10 +126,14 @@
       const be = mg > 0 ? 1 / mg : null, cur = m.roas;
       lines.push(['Ist-Wert (' + src + ')', cur > 0 ? `Conv.-Wert/Kosten ${f.num2(cur)} → <b>${f.int(cur * 100)} %</b>` : 'noch keine Conversion-Werte']);
       if (be) lines.push(['Break-even bei ' + f.pct0(mg) + ' Marge', `<b>${f.int(be * 100)} %</b> (darunter verlieren Sie Geld)`]);
+      const cxb = GD.ctx(APP.S);
+      if (cxb.roasGoalMeasured) lines.push(['ROAS-Ziel der Geschäftsleitung', `echt ${f.num2(cxb.roasGoal)} ≈ gemessen <b>${f.int(cxb.roasGoalMeasured * 100)} %</b>`]);
+      if (cxb.g) lines.push(['Monatsbudget', `Hochrechnung ${f.eur0(cxb.proj)} von ${f.eur0(cxb.mb)} · Kurs: <b>${GD.modeText[cxb.mode]}</b>`]);
       if (val > 0) {
         const t = val / 100, adPer100 = 100 / t, dbPer100 = 100 * mg - adPer100;
         lines.push([`Ihr Ziel ${f.int(val)} % bedeutet`, `je 100 € Umsatz höchstens ${f.eur(adPer100)} Werbung${mg ? ` → Deckungsbeitrag ≈ <span class="${dbPer100 >= 0 ? 'up' : 'down'}">${f.eur(dbPer100)}</span> je 100 € Umsatz` : ''}`]);
         if (be && t < be) verdict = ['bad', 'Unter Break-even: Jeder Umsatz kostet mehr Werbung, als er an Rohertrag bringt.'];
+        else if (cxb.roasGoalMeasured && t < cxb.roasGoalMeasured) verdict = ['warn', `Unter dem ROAS-Ziel der Geschäftsleitung (≈ ${f.int(cxb.roasGoalMeasured * 100)} % gemessen): mehr Volumen, aber das Quartalsziel ist gefährdet.`];
         else if (cur > 0 && t > cur * 1.3) verdict = ['warn', `Deutlich über dem Ist-Wert (${f.int(cur * 100)} %): Smart Bidding wird sehr vorsichtig bieten – Volumen bricht ein, Status „Eingeschränkt durch Ziel" droht. Besser in 10–15-%-Schritten erhöhen.`];
         else if (cur > 0 && t < cur * 0.75) verdict = ['warn', 'Deutlich unter dem Ist-Wert: Google bietet aggressiver – mehr Umsatz, aber geringere Effizienz. Prüfen Sie, ob der Wert noch über Break-even liegt.'];
         else if (cur > 0) verdict = ['good', 'Realistischer Startwert nahe Ihrem Ist-Wert.'];
@@ -97,7 +154,85 @@
       ${type === 'troas' || type === 'maxvalue' ? '<div class="small">Ziel-ROAS in % = gewünschter Conv.-Wert ÷ Kosten × 100. 400 % = 4 € Umsatz je 1 € Werbung. <b>Höher = vorsichtiger</b> (weniger Volumen), <b>niedriger = aggressiver</b>.</div>' : '<div class="small">Durchschnittliche Kosten pro Conversion, die Google anstrebt. <b>Niedriger = vorsichtiger</b> (weniger Volumen), <b>höher = aggressiver</b>.</div>'}
       <dl class="kv" style="margin:8px 0 0">${lines.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>
       ${verdict ? `<div class="callout ${verdict[0]}" style="margin:8px 0 0">${verdict[1]}</div>` : ''}
-      <button type="button" class="btn sm" data-act="glossmore" data-id="${det}" style="margin-top:8px">ⓘ Ausführlich erklärt</button></div>`;
+      <div class="tipjump"><button type="button" class="btn sm primary" data-act="bidwizard" data-t="${type}">🧭 Geführte Hilfe (mit Marge, Budget & Zielen)</button><button type="button" class="btn sm" data-act="glossmore" data-id="${det}">ⓘ Ausführlich erklärt</button></div></div>`;
+  };
+  // ---------- Geführte Hilfe für Zielwerte: Szenarien mit Marge, Monatsbudget und Zielen ----------
+  GD.scenarios = function (S, type, c, budget) {
+    const cx = GD.ctx(S), r30 = [Math.max(0, S.day - 30), S.day - 1];
+    const m = UI.ext(E.derive(c ? E.sumRange(S, 'camp', c.id, r30[0], r30[1]) : E.sumRange(S, 'acct', 'all', r30[0], r30[1])));
+    const days = Math.max(1, Math.min(30, S.day - (c ? Math.max(0, c.created || 0) : 0)));
+    const roas = type === 'troas' || type === 'maxvalue';
+    const ok = m.conv >= 5 && m.cost > 0;
+    if (!ok) return { cx, m, ok };
+    const spend0 = m.cost / days, cap = budget || (c ? c.budget : spend0 * 1.5);
+    const vpc = m.valPerConv || M.ind(S).aov, real = cx.measure > 0 ? 1 / cx.measure : 1;
+    const rows = [];
+    const mk = (target, label) => {
+      let spend, rr, conv;
+      if (roas) {
+        const r0 = m.roas, t = target;
+        spend = spend0 * U.clamp(Math.pow(r0 / t, 1.6), 0.12, 3);
+        rr = r0 * Math.pow(t / r0, 0.55);
+      } else {
+        const a0 = m.cpa, t = target;
+        spend = spend0 * U.clamp(Math.pow(t / a0, 1.9), 0.12, 3);
+        rr = (vpc / (a0 * Math.pow(t / a0, 0.55)));
+      }
+      const limited = spend > cap;
+      spend = Math.min(spend, cap);
+      const rev = spend * rr; conv = rev / vpc;
+      const db = rev * real * cx.mg - spend; // echter Deckungsbeitrag je Tag
+      const monthDelta = (spend - spend0) * cx.daysLeft;
+      const budgetOk = !cx.g || cx.proj + monthDelta <= cx.mb * 1.0;
+      const goalOk = !cx.roasGoal || rr * real >= cx.roasGoal;
+      rows.push({ target, label, spend, rr, rev, conv, db, limited, monthDelta, budgetOk, goalOk, beOk: cx.mg ? rr * real >= 1 / cx.mg : true });
+    };
+    const base = roas ? m.roas : m.cpa;
+    const facs = roas ? [0.75, 0.9, 1, 1.15, 1.3, 1.5] : [0.7, 0.85, 1, 1.15, 1.3, 1.5];
+    const seen = new Set();
+    const add = (t, l) => { const k = roas ? Math.round(t * 20) / 20 : Math.round(t); if (k > 0 && !seen.has(k)) { seen.add(k); mk(roas ? k : k, l); } };
+    for (const fa of facs) add(base * fa, fa === 1 ? 'Ist-Wert' : '');
+    if (roas && cx.mg) add(1 / cx.mg, 'Break-even');
+    if (roas && cx.roasGoalMeasured) add(cx.roasGoalMeasured, 'Ziel der GL');
+    if (!roas && cx.mg) add(vpc * cx.mg * cx.measure, 'Break-even');
+    rows.sort((a, b) => (roas ? a.target - b.target : b.target - a.target)); // von aggressiv zu vorsichtig
+    // Empfehlung: höchster Deckungsbeitrag unter Einhaltung von Budget, Zielen und Break-even; bei Wachstum mehr Volumen
+    const valid = rows.filter((r) => r.budgetOk && r.goalOk && r.beOk);
+    let best = null;
+    if (valid.length) best = cx.mode === 'grow' ? valid.slice().sort((a, b) => b.conv - a.conv).find((r) => r.db >= 0) || valid[0] : cx.mode === 'save' ? (valid.filter((r) => r.monthDelta <= 1).sort((a, b) => b.db - a.db)[0] || valid.slice().sort((a, b) => a.spend - b.spend)[0]) : valid.slice().sort((a, b) => b.db - a.db)[0];
+    if (best) best.best = true;
+    return { cx, m, ok, rows, roas, best, spend0, cap };
+  };
+  GD.wizardHtml = function (S, type, cid, budget) {
+    const c = cid ? M.camp(S, cid) : null;
+    const sc = GD.scenarios(S, type, c, budget), cx = sc.cx, m = sc.m;
+    const roas = type === 'troas' || type === 'maxvalue';
+    let html = GD.ctxHtml(S, cx) || '<div class="callout">Keine Vorgaben der Geschäftsleitung aktiv.</div>';
+    html += `<div class="gd-sec"><b>${c ? 'Kampagne „' + esc(c.name) + '"' : 'Konto'} – letzte 30 Tage</b><dl class="kv" style="margin-top:4px"><dt>Kosten</dt><dd>${f.eur(m.cost)} (Tagesbudget ${f.eur0(sc.cap || (c ? c.budget : 0))})</dd><dt>Conversions / Wert</dt><dd>${f.num1(m.conv)} / ${f.eur(m.val)}</dd><dt>Conv.-Wert/Kosten</dt><dd>${f.num2(m.roas)} = ${m.roas ? f.int(m.roas * 100) + ' %' : '–'}</dd><dt>Kosten/Conv.</dt><dd>${f.eur(m.cpa)}</dd><dt>Verl. Impr.-Anteil Budget / Rang</dt><dd>${f.pct0(m.lostB)} / ${f.pct0(m.lostR)}</dd><dt>Deckungsbeitrag (echt)</dt><dd class="${m.rgp >= 0 ? 'up' : 'down'}">${f.eur(m.rgp)}</dd></dl></div>`;
+    if (!sc.ok) return html + '<div class="callout warn">Zu wenige Conversions (unter 5 in 30 Tagen) für eine belastbare Schätzung. Empfehlung: zunächst „Conversions maximieren" bzw. „Conversion-Wert maximieren" ohne Zielwert oder manueller CPC, bis genug Daten vorliegen. Untergrenze für spätere Ziel-ROAS: Break-even ' + (cx.mg ? f.int(100 / cx.mg) + ' %' : '–') + (cx.roasGoalMeasured ? `, Ziel der Geschäftsleitung ≈ ${f.int(cx.roasGoalMeasured * 100)} %` : '') + '.</div>';
+    const fmtT = (t) => (roas ? f.int(t * 100) + ' %' : f.eur(t));
+    const yes = (b, t) => (b ? '<span class="up">✓</span>' : `<span class="down" title="${t}">✗</span>`);
+    const rows = sc.rows.map((r) => `<tr class="${r.best ? 'gd-best' : ''}"><td><b>${fmtT(r.target)}</b>${r.label ? `<div class="tiny muted">${r.label}</div>` : ''}${r.best ? '<div class="tiny up"><b>★ Empfehlung</b></div>' : ''}</td><td class="num">${f.eur0(r.spend)}${r.limited ? '<div class="tiny muted">Budget-Limit</div>' : ''}</td><td class="num">${f.num1(r.conv * 30)}</td><td class="num">${f.eur0(r.rev * 30)}</td><td class="num">${f.int(r.rr * 100)} %</td><td class="num ${r.db >= 0 ? 'up' : 'down'}">${f.eur0(r.db * 30)}</td><td class="num ${r.monthDelta > 0 ? 'down' : 'up'}">${r.monthDelta >= 0 ? '+' : ''}${f.eur0(r.monthDelta)}</td><td class="center">${yes(r.budgetOk, 'Monatsbudget würde überschritten')} ${yes(r.goalOk, 'ROAS-Ziel der Geschäftsleitung verfehlt')} ${yes(r.beOk, 'unter Break-even')}</td><td><button class="btn sm ${r.best ? 'primary' : ''}" data-act="bidwset" data-v="${roas ? Math.round(r.target * 100) : r.target.toFixed(2)}" data-n="${roas ? 'targetRoas' : 'targetCpa'}">Übernehmen</button></td></tr>`).join('');
+    const why = sc.best ? (cx.mode === 'save' ? 'Kurs „Budget sparen": empfohlen wird der Wert mit dem höchsten Deckungsbeitrag, der die Ausgaben nicht erhöht und Monatsbudget sowie Ziele einhält.' : cx.mode === 'grow' ? 'Kurs „Wachstum": empfohlen wird der Wert mit den meisten Conversions, der noch Budget, Ziele und Break-even einhält.' : 'Empfohlen wird der Wert mit dem höchsten Deckungsbeitrag, der Monatsbudget, Ziele und Break-even einhält.') : '<span class="down">Kein Szenario erfüllt alle Vorgaben gleichzeitig.</span> Prüfen Sie, ob das Budget anderer Kampagnen gesenkt werden kann, oder priorisieren Sie das wichtigste Ziel.';
+    return html + `<div class="gd-sec"><b>Szenarien (Schätzung)</b><div class="small muted">Von aggressiv (oben) zu vorsichtig (unten). Werte je 30 Tage; „Monat Δ" = Mehr-/Minderausgaben bis Monatsende gegenüber heute. Prüfung: Monatsbudget · ROAS-Ziel · Break-even.</div>
+      <div class="tablewrap" style="margin-top:6px"><table class="t"><thead><tr><th>${roas ? 'Ziel-ROAS' : 'Ziel-CPA'}</th><th class="num">Kosten/Tag</th><th class="num">Conv.</th><th class="num">Conv.-Wert</th><th class="num">ROAS (gem.)</th><th class="num">Deckungsbeitrag (echt)</th><th class="num">Monat Δ</th><th>Budget · Ziel · BE</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>
+      <div class="callout ${sc.best ? 'good' : 'warn'}">${why}</div>
+      <div class="callout warn small"><b>⚠ Unterschied zum echten Google Ads</b><br>Die Szenarien sind eine vereinfachte Schätzung des Simulators (Elastizität von Volumen und Effizienz). Google Ads bietet dafür den <i>Gebotsstrategie-Simulator</i> bzw. Zielwert-Simulationen, kennt aber weder Ihre Marge noch Ihr internes Monatsbudget – diese Abwägung müssen Sie in der Praxis selbst treffen.</div>`;
+  };
+  ACT.bidwizard = (el, d) => {
+    const modal = document.getElementById('modal-root');
+    const bud = modal ? UI.num('budget', modal) : null;
+    UI.hideTip();
+    UI.sheet('🧭 Geführte Hilfe: ' + (d.t === 'troas' || d.t === 'maxvalue' ? 'Ziel-ROAS' : 'Ziel-CPA') + ' festlegen', GD.wizardHtml(APP.S, d.t, APP._bidCid, bud));
+  };
+  ACT.bidwset = (el, d) => {
+    const inp = document.querySelector(`#modal-root [name="${d.n}"]`);
+    UI.closeSheet();
+    if (!inp) { UI.toast('Feld nicht gefunden – bitte Wert manuell eintragen: ' + d.v, 'bad'); return; }
+    inp.value = d.v;
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    inp.focus();
+    UI.toast('Zielwert eingetragen – mit „Speichern" übernehmen', 'good');
   };
   document.addEventListener('input', (ev) => {
     const el = ev.target;
@@ -138,6 +273,9 @@
     const P = [];
     const live = S.campaigns.filter((c) => c.status === 'enabled' && !c.isTrial);
     const r30 = [Math.max(0, S.day - 30), S.day - 1];
+    const cx = GD.ctx(S);
+    // Vorgaben der Geschäftsleitung
+    if (cx.g && S.day > 3 && cx.proj > cx.mb * 1.02) P.push({ id: 'mbudget', sev: 'bad', views: ['overview', 'campaigns', 'business'], title: `Monatsbudget wird voraussichtlich überschritten (${f.eur0(cx.proj)} von ${f.eur0(cx.mb)})`, why: 'Das Controlling zieht Überschreitungen vom Folgemonat ab und die Geschäftsleitung verliert Vertrauen.', steps: [`Summe der Tagesbudgets bis Monatsende auf höchstens <b>${f.eur0(cx.maxDaily)}</b> senken (aktuell ${f.eur0(cx.budgets)})`, 'Zuerst bei Kampagnen mit dem geringsten Deckungsbeitrag kürzen', 'Alternativ Zielwerte verschärfen (Ziel-ROAS höher / Ziel-CPA niedriger)'], fix: [btn('Zu Kampagnen', 'nav', { v: 'campaigns' })] });
     // Geld & Messung
     if (S.company.cash <= 0) P.push({ id: 'cash', sev: 'bad', views: ['overview', 'billing', 'business'], title: 'Kasse leer – alle Anzeigen gestoppt', why: 'Ohne Zahlungsmittel kann Google nicht abbuchen; die Auslieferung steht.', steps: ['Kredit aufnehmen oder Kosten senken', 'Unprofitable Kampagnen pausieren', 'Danach Tage simulieren und Kasse beobachten'], fix: [btn('Kredit aufnehmen', 'capital')] });
     if (!S.account.trackingOk) P.push({ id: 'trk', sev: 'bad', views: ['overview', 'conversions', 'campaigns'], title: 'Conversion-Tracking funktioniert nicht', why: 'Google sieht keine Conversions mehr. Smart Bidding senkt die Gebote, Berichte zeigen falsche Werte.', steps: ['Tools → Conversions öffnen', '„Tag testen" klicken – zeigt, ob das Tag fehlt', '„Tracking reparieren" ausführen', 'Ein paar Tage simulieren: Conversions erscheinen wieder (nachgemeldet)'], fix: [btn('Zu Conversions', 'nav', { v: 'conversions' })] });
@@ -164,9 +302,28 @@
       if (cls === 'bad' && /Anzeigen|Keywords|Produkte/.test(lab)) P.push({ id: 'cst_' + c.id, sev: 'bad', views: ['overview', 'campaigns'], title: `${esc(c.name)}: ${esc(lab)}`, why: 'Die Kampagne ist aktiv, kann aber nichts ausliefern.', steps: /Keywords/.test(lab) ? ['Keywords öffnen', 'Keyword hinzufügen oder pausierte aktivieren'] : /Produkte/.test(lab) ? ['Merchant Center öffnen', 'Produkte aktivieren bzw. Lagerbestand prüfen'] : ['Anzeigen öffnen', 'Abgelehnte Anzeigen korrigieren oder neue Anzeige anlegen'], fix: [btn('Beheben', 'nav', { v: /Keywords/.test(lab) ? 'keywords' : /Produkte/.test(lab) ? 'products' : 'ads' })] });
       if (c.rt && c.rt.limited && m.cost > 0) {
         const prof = m.gp > 0;
-        P.push({ id: 'bud_' + c.id, sev: prof ? 'warn' : 'info', views: ['campaigns', 'overview'], title: `${esc(c.name)}: Eingeschränkt durch Budget`, why: `Sie verpassen ${f.pct0(m.lostB)} der möglichen Impressionen wegen Budget. Deckungsbeitrag (gemessen, 30 T): ${f.eur(m.gp)}.`, steps: prof ? ['Die Kampagne ist profitabel – Budget schrittweise erhöhen (z. B. +20 %)', 'Monatsbudget der Geschäftsleitung im Blick behalten', 'Nach 1 Woche prüfen, ob Deckungsbeitrag mitwächst'] : ['Die Kampagne ist nicht profitabel – Budget NICHT erhöhen', 'Gebote bzw. Zielwerte senken → mehr, aber günstigere Klicks', 'Streuverluste über Suchbegriffe ausschließen'], fix: [btn('Kampagne bearbeiten', 'editcampaign', { id: c.id })] });
+        const others = live.filter((o) => o.id !== c.id && o.status === 'enabled').map((o) => ({ o, m: UI.ext(E.derive(E.sumRange(S, 'camp', o.id, r30[0], r30[1]))) })).filter((x) => x.m.cost > 0).sort((a, b) => U.div(a.m.gp, a.m.cost) - U.div(b.m.gp, b.m.cost));
+        const donor = others.find((x) => U.div(x.m.gp, x.m.cost) < U.div(m.gp, m.cost));
+        const why = `Sie verpassen ${f.pct0(m.lostB)} der möglichen Impressionen wegen Budget. Deckungsbeitrag (gemessen, 30 T): ${f.eur(m.gp)}.`;
+        let steps, title = `${esc(c.name)}: Eingeschränkt durch Budget`, sev = 'info', extra = '';
+        if (!prof) steps = ['Die Kampagne ist nicht profitabel – Budget NICHT erhöhen', 'Gebote bzw. Zielwerte senken → mehr, aber günstigere Klicks', 'Streuverluste über Suchbegriffe ausschließen'];
+        else if (cx.mode === 'save') {
+          extra = ` <b>Aber:</b> Die Geschäftsleitung verlangt ${cx.spar ? 'nach der Sparrunde ' : ''}Budgetdisziplin – Hochrechnung ${f.eur0(cx.proj)} von ${f.eur0(cx.mb)} Monatsbudget. Mehr Budget würde das Controlling-Ziel verletzen und Vertrauen kosten.`;
+          steps = [donor ? `Budget <b>umschichten</b> statt erhöhen: z. B. von „${esc(donor.o.name)}" (geringerer Deckungsbeitrag je €) zu dieser Kampagne – Gesamtbudget bleibt gleich` : 'Budget nicht erhöhen – Gesamtausgaben müssen gleich bleiben oder sinken', 'Gebote/Zielwerte leicht senken: mehr Klicks fürs gleiche Geld (z. B. Ziel-ROAS +10 % bzw. CPC −10 %)', 'Streuverluste ausschließen und Werbezeitplan auf die stärksten Zeiten konzentrieren', `Summe aller Tagesbudgets höchstens ${f.eur0(cx.maxDaily)} bis Monatsende`];
+          sev = 'info'; title = `${esc(c.name)}: Budget knapp – aber Sparvorgabe beachten`;
+        } else if (cx.room > 0) {
+          const inc = Math.min(c.budget * 0.25, cx.roomDaily);
+          steps = [`Die Kampagne ist profitabel und das Monatsbudget hat Spielraum (${f.eur0(cx.room)}).`, inc >= 1 ? `Tagesbudget um höchstens <b>${f.eur0(inc)}</b> erhöhen (auf ${f.eur0(c.budget + inc)}) – mehr sprengt das Monatsbudget` : 'Spielraum ist sehr klein – lieber umschichten', donor ? `Alternativ von „${esc(donor.o.name)}" umschichten` : 'Nach 1 Woche prüfen, ob der Deckungsbeitrag mitwächst', 'Hochrechnung in der Übersicht im Blick behalten'];
+          sev = cx.volBehind ? 'warn' : 'info';
+        } else steps = ['Kein Spielraum im Monatsbudget – nicht erhöhen', donor ? `Von „${esc(donor.o.name)}" umschichten` : 'Gebote senken für mehr günstige Klicks', 'Streuverluste ausschließen'];
+        P.push({ id: 'bud_' + c.id, sev, views: ['campaigns', 'overview'], title, why: why + extra, steps, fix: [btn('Kampagne bearbeiten', 'editcampaign', { id: c.id })] });
       }
-      if (c.rt && c.rt.limitedTarget) P.push({ id: 'tgt_' + c.id, sev: 'warn', views: ['campaigns', 'overview'], title: `${esc(c.name)}: Eingeschränkt durch Ziel`, why: 'Ihr Ziel-CPA ist zu niedrig bzw. Ziel-ROAS zu hoch – Smart Bidding findet kaum Auktionen, die das Ziel erfüllen. Das Budget wird nicht ausgegeben.', steps: ['Kampagne bearbeiten', c.bidStrategy.type === 'troas' ? 'Ziel-ROAS um 10–15 % senken (der Rechner im Formular zeigt Ist-Wert und Break-even)' : 'Ziel-CPA um 10–15 % erhöhen (Ist-Wert im Formular)', 'Lernphase von ca. 5 Tagen abwarten'], fix: [btn('Zielwert anpassen', 'editcampaign', { id: c.id })] });
+      if (c.rt && c.rt.limitedTarget) {
+        const tr = c.bidStrategy.type === 'troas' || c.bidStrategy.type === 'maxvalue';
+        const floor = tr && cx.roasGoalMeasured ? Math.max(cx.roasGoalMeasured, cx.mg ? 1 / cx.mg : 0) : cx.mg ? 1 / cx.mg : null;
+        const stepsT = ['Kampagne bearbeiten – im Formular „🧭 Geführte Hilfe" öffnen: zeigt Szenarien mit Marge, Monatsbudget und Zielen', tr ? `Ziel-ROAS um 10–15 % senken${floor ? `, aber nicht unter <b>${f.int(floor * 100)} %</b> (${cx.roasGoalMeasured && floor === cx.roasGoalMeasured ? 'ROAS-Ziel der Geschäftsleitung' : 'Break-even'})` : ''}` : 'Ziel-CPA um 10–15 % erhöhen (Ist-Wert im Formular)', cx.mode === 'save' ? 'Achtung Sparvorgabe: mehr Volumen heißt mehr Ausgaben – Monatsbudget prüfen' : 'Lernphase von ca. 5 Tagen abwarten'];
+        P.push({ id: 'tgt_' + c.id, sev: 'warn', views: ['campaigns', 'overview'], title: `${esc(c.name)}: Eingeschränkt durch Ziel`, why: 'Ihr Ziel-CPA ist zu niedrig bzw. Ziel-ROAS zu hoch – Smart Bidding findet kaum Auktionen, die das Ziel erfüllen. Das Budget wird nicht ausgegeben.' + (cx.mode === 'save' ? ' Bei der aktuellen Sparvorgabe kann das sogar gewollt sein.' : ''), steps: stepsT, fix: [btn('Zielwert anpassen', 'editcampaign', { id: c.id })] });
+      }
       const bs = D.BID_STRATEGIES[c.bidStrategy.type];
       if (bs && bs.smart && ['tcpa', 'troas', 'maxconv', 'maxvalue'].includes(c.bidStrategy.type) && S.day - (c.created || 0) > 21 && m.conv < 15) P.push({ id: 'dat_' + c.id, sev: 'info', views: ['campaigns'], title: `${esc(c.name)}: wenig Daten für Smart Bidding`, why: `Nur ${f.num1(m.conv)} Conversions in 30 Tagen. Smart Bidding schätzt dann ungenau.`, steps: ['Kampagnen bündeln, um mehr Daten pro Strategie zu haben', 'Oder vorübergehend „Klicks maximieren" bzw. manuellen CPC nutzen', 'Conversion-Tracking prüfen'], fix: [btn('Kampagne bearbeiten', 'editcampaign', { id: c.id })] });
       if (c.learnUntil !== null && c.learnUntil > S.day) P.push({ id: 'lrn_' + c.id, sev: 'info', views: ['campaigns'], title: `${esc(c.name)}: Lernphase bis Tag ${c.learnUntil + 1}`, why: 'Nach Änderungen lernt Smart Bidding neu; die Leistung schwankt.', steps: ['Keine weiteren großen Änderungen vornehmen', 'Erst nach der Lernphase bewerten'], fix: [] });

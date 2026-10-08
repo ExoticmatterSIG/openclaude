@@ -452,3 +452,23 @@ th.has-tip.sortable { cursor: pointer; }
   .sgrid .h { font-size: 8px; }
   .sgrid .h:nth-child(odd) { visibility: hidden; }
 }
+.gd-best td { background: var(--good-soft); }
+.sheet .modal { max-width: min(980px, calc(100vw - 32px)); width: 100%; }
+/* Übersicht als Baukasten */
+.ovgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; grid-auto-flow: row dense; align-items: start; }
+.ovw { min-width: 0; }
+.ovw.full { grid-column: 1 / -1; }
+@media (max-width: 900px) { .ovgrid { grid-template-columns: minmax(0, 1fr); } }
+.ovw.editing { outline: 2px dashed var(--border); outline-offset: 4px; border-radius: var(--radius); margin-bottom: 20px; }
+.ovw.editing > .card { margin-bottom: 0; pointer-events: none; opacity: .85; }
+.ovw.dragging { opacity: .4; }
+.ovw.dropto { outline-color: var(--primary); }
+.ovbar { display: flex; align-items: center; gap: 8px; padding: 4px 6px 6px; flex-wrap: wrap; }
+.ovgrip { cursor: grab; color: var(--text-3); font-size: 16px; }
+.ovtools { margin-left: auto; display: flex; gap: 2px; flex-wrap: wrap; }
+.ovtools .iconbtn { width: auto; padding: 0 8px; font-size: 12px; border-radius: 14px; }
+.ovtools .iconbtn[disabled] { opacity: .35; }
+.ovcat { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 8px; }
+.ovopt { display: flex; gap: 8px; align-items: flex-start; padding: 10px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.ovopt > span { display: flex; flex-direction: column; gap: 2px; }
+.ovopt:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
