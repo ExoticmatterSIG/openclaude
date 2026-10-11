@@ -327,7 +327,7 @@
     if (!force && ae && main.contains(ae) && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) && ae.type !== 'checkbox') return; // Eingaben nicht zerstören
     const v = V[APP.view] || V.overview;
     C.reset();
-    if (UI.hideTip) UI.hideTip();
+    if (UI.hideTipSoft) UI.hideTipSoft();
     UI._cmpCache = new Map();
     const y = window.scrollY;
     try {
@@ -350,11 +350,12 @@
       const sel = el.querySelector('select');
       const txt = sel ? sel.options[sel.selectedIndex].text : el.textContent;
       const tip = G.GLOSS.get(txt);
-      if (tip) { el.dataset.tip = tip; el.dataset.tipKey = txt; el.classList.add('has-tip'); }
+      if (tip && !(UI.prefs().hiddenTips || {})[String(txt).toLowerCase().replace(/[▲▼ⓘ⌖]/g, '').replace(/\s+/g, ' ').trim()]) { el.dataset.tip = tip; el.dataset.tipKey = txt; el.classList.add('has-tip'); }
     }
   };
   // Tooltip (Hover am Desktop, Antippen auf Touch-Geräten) – mit „Mehr erfahren" zu ausführlichen Erklärungen
-  let tipEl = null, tipTimer = null, hideTimer = null, tipOwner = null;
+  let tipEl = null, tipTimer = null, hideTimer = null, tipOwner = null, tipSuppressed = null, tipShownAt = 0;
+  const tipKeyOf = (el) => String(el.dataset.tipKey || el.textContent || '').toLowerCase().replace(/[▲▼ⓘ⌖]/g, '').replace(/\s+/g, ' ').trim();
   const detailFor = (el) => (G.GLOSS_DETAIL && UI.prefs().tipMore ? G.GLOSS_DETAIL.get(el.dataset.tipKey || el.textContent) : null);
   function showTip(el) {
     if (!tipEl) {
@@ -364,9 +365,9 @@
     }
     clearTimeout(hideTimer);
     if (tipOwner === el && tipEl.style.display === 'block') return;
-    tipOwner = el;
+    tipOwner = el; tipShownAt = Date.now();
     const det = detailFor(el);
-    tipEl.innerHTML = esc(el.dataset.tip) + (det ? `<button class="tipmore" data-act="glossmore" data-id="${det.id}">ⓘ Mehr erfahren</button>` : '');
+    tipEl.innerHTML = `<button class="tipx" data-act="tipclose" title="Schließen" aria-label="Erklärung schließen">✕</button><div class="tiptxt">${esc(el.dataset.tip)}</div><div class="tipacts">${det ? `<button class="tipmore" data-act="glossmore" data-id="${det.id}">ⓘ Mehr erfahren</button>` : ''}<button class="tiphide" data-act="tiphide" title="Diese Erklärung künftig nicht mehr anzeigen">Nicht mehr zeigen</button></div>`;
     tipEl.style.display = 'block';
     const r = el.getBoundingClientRect(), w = Math.min(320, window.innerWidth - 24);
     tipEl.style.maxWidth = w + 'px';
@@ -378,13 +379,26 @@
   function hideTip() { if (tipEl) tipEl.style.display = 'none'; tipOwner = null; }
   function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(hideTip, 350); }
   UI.hideTip = hideTip;
+  // Beim Neuzeichnen (z. B. Sortieren per Tipp) eine gerade geöffnete Erklärung stehen lassen
+  UI.hideTipSoft = () => { if (Date.now() - tipShownAt > 500) hideTip(); };
   const touch = window.matchMedia && window.matchMedia('(hover: none)').matches;
   document.addEventListener('mouseover', (ev) => {
     if (touch) return;
     if (tipEl && tipEl.contains(ev.target)) return;
     const el = ev.target.closest && ev.target.closest('[data-tip]');
+    if (tipSuppressed && el !== tipSuppressed) tipSuppressed = null; // nach ✕ erst wieder zeigen, wenn die Maus das Element verlassen hat
+    if (el && el === tipSuppressed) return;
     if (el) showTip(el); else if (tipOwner) scheduleHide();
   });
+  ACT.tipclose = () => { tipSuppressed = tipOwner; hideTip(); };
+  ACT.tiphide = () => {
+    if (!tipOwner) return;
+    const key = tipKeyOf(tipOwner), hid = { ...(UI.prefs().hiddenTips || {}), [key]: 1 };
+    UI.setPref('hiddenTips', hid);
+    document.querySelectorAll('[data-tip]').forEach((x) => { if (tipKeyOf(x) === key) { delete x.dataset.tip; x.classList.remove('has-tip'); } });
+    hideTip();
+    UI.toast('Erklärung ausgeblendet – unter Einstellungen → Lernhilfen wieder einblendbar');
+  };
   document.addEventListener('click', (ev) => {
     if (!touch) return;
     if (tipEl && tipEl.contains(ev.target)) return;

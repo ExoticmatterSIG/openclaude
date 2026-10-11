@@ -85,7 +85,8 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
 ## Lernhilfen
 
 - **Erklärungen beim Überfahren:** Alle Kennzahlen und Fachbegriffe (Tabellenköpfe, Kacheln, Kennzahl-Listen) zeigen beim
-  Überfahren – auf Touch-Geräten beim Antippen – eine kurze Erklärung (Glossar in `js/glossary.js`).
+  Überfahren – auf Touch-Geräten beim Antippen – eine kurze Erklärung (Glossar in `js/glossary.js`). Jede Erklärung lässt
+  sich mit ✕ schließen oder mit „Nicht mehr zeigen" dauerhaft ausblenden (zurücksetzbar unter Einstellungen → Lernhilfen).
 - **„ⓘ Mehr erfahren":** Im Tooltip öffnet ein Button eine ausführliche Erklärung (Definition, Formel, Beispiel,
   Einordnung, Hebel, Ihre aktuellen Zahlen inkl. Break-even, Unterschied zu Google Ads) – z. B. zu ROAS/Ziel-ROAS, CPA,
   Anteil an Impressionen, Qualitätsfaktor (`js/glossary-detail.js`).

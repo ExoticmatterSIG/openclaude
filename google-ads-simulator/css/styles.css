@@ -503,3 +503,12 @@ details.crit .crit-body { padding: 0 16px 14px; font-size: 13px; line-height: 1.
 details.crit .crit-body ul, details.crit .crit-body ol { padding-left: 20px; margin: 6px 0; }
 details.crit .crit-body li { margin: 3px 0; }
 details.crit .mono { background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 6px; padding: 8px 10px; }
+/* Tooltip: Schließen & Ausblenden */
+.tipbox { padding-right: 28px; }
+.tipbox .tipx { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border: 0; border-radius: 50%; background: transparent; color: inherit; opacity: .7; cursor: pointer; font-size: 12px; line-height: 20px; padding: 0; }
+.tipbox .tipx:hover { opacity: 1; background: color-mix(in srgb, var(--bg) 20%, transparent); }
+.tipbox .tipacts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.tipbox .tipacts .tipmore { margin-top: 0; }
+.tipbox .tiphide { border: 0; background: transparent; color: inherit; opacity: .65; font: inherit; font-size: 11px; text-decoration: underline; cursor: pointer; padding: 3px 2px; }
+.tipbox .tiphide:hover { opacity: 1; }
+@media (hover: none) { .tipbox .tipx { width: 28px; height: 28px; line-height: 28px; font-size: 14px; } }

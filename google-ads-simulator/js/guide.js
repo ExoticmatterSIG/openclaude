@@ -376,6 +376,7 @@
   };
   ACT.gdoff = () => UI.confirm('Geführte Hilfe ausschalten?', 'Die Problemhinweise mit Schritt-für-Schritt-Anleitung werden ausgeblendet. Sie können sie jederzeit unter Einstellungen → Lernhilfen wieder einschalten.', () => { UI.setPref('guide', false); UI.render(true); }, 'Ausschalten');
   ACT.gdasset = (el, d) => { APP._assetType = d.t; ACT.newasset(); };
+  ACT.tipsreset = () => { UI.setPref('hiddenTips', {}); UI.toast('Alle Erklärungen werden wieder angezeigt', 'good'); UI.render(true); };
   ACT.chg_pref = (el, d) => { UI.setPref(d.k, el.checked); UI.render(true); };
   GD.prefsCard = function () {
     const p = UI.prefs();
@@ -385,6 +386,7 @@
       ${row('tips', 'Erklärungen beim Überfahren', 'Kurze Erklärung zu Kennzahlen und Begriffen (Tabellenköpfe, Kacheln, Formularfelder).')}
       ${row('cmpTables', 'Veränderung in Tabellen anzeigen', 'Bei aktivem Vergleichszeitraum (z. B. „Vgl.: Vormonat") steht unter jedem Kennzahlwert die prozentuale Veränderung.')}
       ${row('tipMore', '„Mehr erfahren" in Erklärungen', 'Button im Tooltip zu ausführlichen Erklärungen mit Formel, Beispiel, Ihren Zahlen und Unterschieden zu Google Ads.')}
-      <div class="small muted">Gilt für alle Spielstände in diesem Browser. Profis können alles ausschalten.</div></div>`);
+      ${Object.keys(p.hiddenTips || {}).length ? `<div><button class="btn sm" data-act="tipsreset">Ausgeblendete Erklärungen wieder anzeigen (${Object.keys(p.hiddenTips).length})</button></div>` : ''}
+      <div class="small muted">Jede Erklärung lässt sich mit ✕ schließen oder mit „Nicht mehr zeigen" dauerhaft ausblenden. Gilt für alle Spielstände in diesem Browser. Profis können alles ausschalten.</div></div>`);
   };
 })();
