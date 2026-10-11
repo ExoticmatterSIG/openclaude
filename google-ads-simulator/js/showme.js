@@ -21,7 +21,7 @@
     ['Reiter „Raster bearbeiten"', 'el:schedule|#sgrid|tab:sched=grid'], ['„Raster bearbeiten"', 'el:schedule|#sgrid|tab:sched=grid'], ['Werbezeitplaner', 'view:schedule'],
     ['Auktionsdaten', 'view:auction'], ['Merchant Center', 'view:products'], ['Suchbegriffbericht', 'view:searchterms'],
     ['„＋ Asset"', 'el:assets|[data-act="newasset"]'], ['＋ Asset', 'el:assets|[data-act="newasset"]'],
-    ['News & Ereignisse', 'view:events'], ['Änderungsverlauf', 'view:history'], ['Keyword-Planer', 'view:planner'],
+    ['News & Ereignisse', 'view:events'], ['Marketing & Team', 'view:mix'], ['Änderungsverlauf', 'view:history'], ['Keyword-Planer', 'view:planner'],
     ['Übersicht anpassen', 'el:overview|[data-act="ovedit"]'],
   ].sort((a, b) => b[0].length - a[0].length);
   const RE = new RegExp(LINKS.map(([t]) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');

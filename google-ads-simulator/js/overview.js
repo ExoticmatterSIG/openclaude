@@ -21,6 +21,7 @@
     { id: 'measure', name: 'Messqualität', desc: 'Gemessene vs. echte Conversions, Messlücke, Tracking-Status.', size: 'half' },
     { id: 'market', name: 'Marktpuls', desc: 'Nachfrage-, CPC- und Kauflaune-Index, Saison.', size: 'half' },
     { id: 'pnl', name: 'Unternehmensergebnis', desc: 'Umsatz, Rohertrag, Werbekosten und Gewinn.', size: 'half' },
+    { id: 'mix', name: 'Marketing & Team', desc: 'Laufende Marketing-Aktionen mit Wirkung und Team-Kosten.', size: 'half' },
     { id: 'news', name: 'Neuigkeiten aus dem Markt', desc: 'Ereignisse, Mitbewerber und Vorgaben.', size: 'half' },
   ];
   const BY = Object.fromEntries(CAT.map((c) => [c.id, c]));
@@ -106,6 +107,12 @@
       const you = UI.sum('ai', pre + '_you');
       const rows = S.competitors.map((c) => { const v = UI.sum('ai', pre + c.id); return { c, is: v[0] ? v[1] / v[0] : 0, ov: v[2] / Math.max(you[1], 1e-9) }; }).filter((r) => r.is >= 0.1).sort((x, y) => y.is - x.is).slice(0, 5);
       return UI.card('Mitbewerber (Auktionsdaten)', `<dl class="kv"><dt><b>Sie</b></dt><dd>${you[0] ? f.pct(you[1] / you[0], 1) : '–'} Anteil an Impr.</dd>${rows.map((r) => `<dt>${esc(r.c.domain)}</dt><dd>${f.pct(r.is, 1)} · Überschneidung ${f.pct(r.ov, 0)}</dd>`).join('') || '<dt class="muted">Keine relevanten Mitbewerber</dt><dd></dd>'}</dl>`, { tools: '<a data-act="nav" data-v="auction">Auktionsdaten</a>' });
+    },
+    mix: (S) => {
+      const MK = G.MKT; if (!MK) return '';
+      const st = MK.state(S), run = st.actions.filter((a) => a.status !== 'done'), staff = st.staff.filter((p) => p.status === 'active');
+      const rows = run.map((a) => { const t = MK.TYPES[a.type], c = MK.curve(a, S.day); return `<li><span class="what"><b>${t.icon} ${esc(t.name)}</b><div class="small muted">${S.day < a.start ? 'startet in ' + (a.start - S.day) + ' T' : c > 0 ? 'Markensuchen +' + Math.round(t.brand * a.lift * c * 100) + ' %' : 'läuft aus'}</div></span></li>`; }).join('');
+      return UI.card('Marketing & Team', `<dl class="kv"><dt>Team</dt><dd>${staff.length ? staff.map((p) => MK.ROLES[p.role].icon).join(' ') + ' · ' + f.eur0(MK.monthlyStaff(S)) + '/Monat' : 'kein Team'}</dd><dt>Investiert in Aktionen</dt><dd>${f.eur0(st.spent)}</dd></dl>${rows ? `<ul class="feed">${rows}</ul>` : '<div class="small muted" style="margin-top:6px">Keine laufenden Aktionen.</div>'}`, { tools: '<a data-act="nav" data-v="mix">Öffnen</a>' });
     },
     measure: (S, dim, id) => {
       const m = UI.m(dim, id), gap = m.rconv > 0 ? 1 - m.conv / m.rconv : 0;

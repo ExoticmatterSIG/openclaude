@@ -107,6 +107,16 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
 - **Geführte Hilfe nach Unternehmensvorgaben:** Budget-Tipps berücksichtigen Monatsbudget-Hochrechnung, Sparrunden,
   Sanktionen und Ziele (Kurs „Budget sparen / halten / Wachstum"), schlagen Umschichtungen statt Erhöhungen vor und
   markieren Google-Empfehlungen, die den Vorgaben widersprechen.
+- **🎬 Marketing & Team:** Überschüssiges Geld in Personal (Creative, Texter, Web-Analyse, Web-Entwicklung/CRO, Social Media,
+  Werkstudent SEA – fest oder als Freelancer) und eine Performance-Agentur investieren. Kandidaten werden nach Eindruck
+  gewählt, die echte Qualität zeigt sich nach 30 Tagen; Fehlbesetzungen schaden (schwächere CTR, falsche Ausschlüsse,
+  Budgeterhöhungen durch die Agentur trotz Sparkurs). Marketing-Aktionen (TV/CTV, Radio, Influencer, Plakate, Messe, CRM,
+  PR, Sale, Gewinnspiel, Sponsoring, im Bank-Modus Verbandskooperation) mit Umfang, Umsetzung (Team/Agentur/Top-Agentur)
+  und Startzeitpunkt: Qualität aus Umsetzung, Team, Branchen-Passung, Saison und Zufall. Sie steigern Marken- und
+  Gattungssuchen (Gattung hilft auch der Konkurrenz), können floppen, Server überlasten oder Shitstorms/Abmahnungen auslösen;
+  am Ende gibt es eine Auswertung. Große Ausgaben brauchen die Freigabe der Geschäftsleitung, alle Kosten zählen in den
+  Marketing-Deckungsbeitrag. Geführte Hilfe warnt u. a. vor fehlender oder zu knapper Markenkampagne während Aktionen
+  (`js/marketing.js`, `js/views-mix.js`, Test: `node test/marketing.mjs`).
 - **🚨 Notfall-Assistent:** Für alle Ereignisse (Serverausfall, Tracking-Ausfall, Bieterkrieg, Rabattaktion, neuer
   Wettbewerber, Lieferengpass, Personalengpass, Konjunkturdelle, Klickbetrug, Brand-Safety-Vorfall, Richtlinien-Update,
   Bank: Zinsoffensive, KYC-Rückstau, VideoIdent-Störung, Verifizierung, EZB-Entscheid) sowie Geschäftsleitungs-Notlagen
@@ -179,6 +189,7 @@ js/glossary-detail.js, guide.js   Ausführliche Erklärungen, Ziel-ROAS-Rechner,
 js/overview.js   Übersicht als Baukasten (Karten, Layout, zusätzliche Karten)
 js/emergency.js  Notfall-Assistent: Leitfäden und Schnellaktionen für Ereignisse
 js/showme.js     „Zeig mir wo": klickbare Bezüge mit Hervorhebung
+js/marketing.js, views-mix.js   Marketing-Mix & Team (Personal, Agentur, Offline-Aktionen)
 js/academy-content.js, academy.js   Akademie: Kursinhalte und Lern-UI mit Sandbox
 js/ui.js, views-*.js, forms.js, charts.js, app.js   Oberfläche
 test/smoke.mjs   Engine-Test ohne Browser: node test/smoke.mjs

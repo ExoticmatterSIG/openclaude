@@ -408,6 +408,7 @@
             <li><b>Markt- und Mitbewerberdaten</b>: Nachfrage-, CPC- und Kauflaune-Index, geschätzte Budgets, Bietintensität und „Marktgerüchte" sind Simulator-Einblicke. Google liefert nur Auktionsdaten und Keyword-Planer-Schätzungen.</li>
             <li><b>Unternehmens-GuV, Kasse, Kredite, Geschäftsleitung, Sanktionen</b>: Spielmechanik ohne Gegenstück in Google Ads.</li>
             <li><b>Psychologie-Analyse, Shop-Hebel, Verkäufer-Sterne-Entwicklung</b>: Modellwerte zur Veranschaulichung.</li>
+            <li><b>Marketing & Team</b> (Personal, Agentur, TV/Influencer/Messe …): Spielmechanik mit geschätzten Effekten; in der Praxis liegt das außerhalb von Google Ads, und die Wirkung auf Suchanfragen ist nur über Tests messbar.</li>
             <li><b>Kostenpflichtige Tipps & Analysen</b>: Spielmechanik; Google bietet Empfehlungen kostenlos.</li></ul>`,
           diff: 'Diese Elemente gibt es so nicht in Google Ads. Sie helfen, Zusammenhänge sichtbar zu machen, die in der Praxis verborgen bleiben.',
           quiz: [{ q: 'Wo finden Sie in der Praxis den „echten" Umsatz Ihrer Anzeigen?', a: ['In der Spalte Conversions in Google Ads', 'Durch Abgleich mit CRM, Shop oder Buchhaltung', 'Im Keyword-Planer'], c: 1, why: 'Google Ads zeigt nur, was gemessen werden kann.' }],

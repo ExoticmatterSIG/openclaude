@@ -179,6 +179,7 @@
         default: if (G.BANK && S.bank) G.BANK.fx(S, e, fx, mul);
       }
     }
+    if (G.MKT) G.MKT.fx(S, fx, mul);
     return fx;
   }
 
@@ -1195,6 +1196,7 @@
     realizeToday(S, buf, ctx);
     processPending(S, buf, ctx);
     commit(S, buf, S.day);
+    if (G.MKT && S.mkt) G.MKT.daily(S, rng, ctx);
     endOfDay(S, rng, ctx);
     S.day++;
     if (G.GOALS) G.GOALS.daily(S, rng);

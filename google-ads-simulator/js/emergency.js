@@ -67,6 +67,33 @@
     return out;
   }
 
+
+  // Marketing & Team: Rückschläge, Budget für Aktionen, Fehlbesetzungen, freies Kapital
+  function mixItems(S) {
+    const MK = G.MKT, out = [];
+    if (!MK || !S.mkt) return out;
+    const st = S.mkt;
+    const PBD = {
+      shitstorm: ['Öffentlich und sachlich Stellung nehmen, Fehler eingestehen', 'Betroffene Aktion bzw. Inhalte stoppen', 'Markenkampagne weiterlaufen lassen, aber Budget nicht erhöhen – die Markensuchen sinken vorübergehend', 'Vertrauenssignale stärken (Bewertungen, Garantien) unter Conversion & Psychologie'],
+      schleichwerbung: ['Posts sofort als „Werbung/Anzeige" kennzeichnen lassen', 'Unterlassungserklärung prüfen (lassen)', 'Künftig Kennzeichnung vertraglich mit Influencern vereinbaren'],
+      pangv: ['Streichpreise sofort korrigieren (niedrigster Preis der letzten 30 Tage)', 'Anzeigen und Angebots-Assets mit Preisen prüfen', 'Rabattaktionen künftig rechtlich prüfen lassen'],
+      teilnahme: ['Teilnahmebedingungen nachreichen, Kopplung an Kauf entfernen', 'Gewinnspiel ggf. beenden', 'Künftig Agentur oder Rechtsprüfung einbinden'],
+      dsgvo: ['Versand stoppen, Verteiler auf Double-Opt-in bereinigen', 'Beschwerden beantworten', 'Web-Analyst/in oder Datenschutzbeauftragte einbinden'],
+    };
+    for (const l of S.market.log.filter((x) => x.mkt && S.day - x.day <= 10)) out.push({ id: 'mixd_' + l.day + l.mkt, sev: 'bad', title: '🔥 ' + esc(l.name.replace(/^🔥\s*/, '')), why: esc(l.desc) + ' Markensuchen und Conversion-Rate sind für ca. zwei Wochen gedämpft.', steps: (PBD[l.mkt] || PBD.shitstorm).concat(['<span class="down">Nicht:</span> mit noch mehr Werbedruck gegensteuern']), fix: [btn('Marketing & Team', 'nav', { v: 'mix' }), btn('Conversion & Psychologie', 'nav', { v: 'cro' })], views: ['overview', 'mix', 'events'] });
+    const run = st.actions.filter((a) => a.status !== 'done' && S.day >= a.start - 3 && S.day <= a.end);
+    if (run.length) {
+      const brand = MK.brandCamps ? MK.brandCamps(S) : [];
+      const t = MK.TYPES[run[0].type], lim = brand.filter((c) => c.rt && c.rt.limited);
+      const peak = Math.round(Math.max(...run.map((a) => MK.TYPES[a.type].brand * a.lift)) * 100);
+      if (!brand.length) out.push({ id: 'mix_nobrand', sev: 'warn', title: 'Marketing-Aktion läuft – aber keine Markenkampagne', why: `„${esc(t.name)}" steigert die Markensuchen um bis zu ${peak} %. Ohne eigene Markenkampagne gehen diese Klicks an organische Treffer oder an Mitbewerber, die auf Ihre Marke bieten.`, steps: ['＋ Neue Kampagne → Suche mit Ihrem Markennamen als Keyword (genau/Wortgruppe)', 'Niedrige Gebote reichen – Markenklicks sind günstig', 'Auktionsdaten prüfen: Bietet jemand auf Ihre Marke?'], fix: [btn('Neue Kampagne', 'newcampaign'), btn('Auktionsdaten', 'nav', { v: 'auction' })], views: ['overview', 'mix', 'campaigns'] });
+      else if (lim.length) { const cx = GD.ctx(S); out.push({ id: 'mix_brandlim', sev: 'warn', title: 'Markenkampagne zu knapp für die laufende Aktion', why: `Die Aktion treibt die Markensuchen (bis +${peak} %), aber „${esc(lim[0].name)}" ist durch das Budget eingeschränkt – teuer erkaufte Nachfrage verpufft.`, steps: [cx.mode === 'save' ? 'Budget von schwächeren generischen Kampagnen zur Markenkampagne umschichten (Sparkurs – Gesamtbudget nicht erhöhen)' : `Tagesbudget der Markenkampagne für die Aktionsdauer anheben (Spielraum im Monatsbudget: ${cx.room === Infinity ? 'unbegrenzt' : f.eur0(cx.room)})`, 'Nach der Aktion wieder zurücksetzen', 'Karte „Budget-Pacing" im Blick behalten'], fix: [btn('Markenkampagne bearbeiten', 'editcampaign', { id: lim[0].id })], views: ['overview', 'mix', 'campaigns'] }); }
+    }
+    for (const p of st.staff.filter((x) => x.status === 'active' && x.revealed && x.skill <= 2)) out.push({ id: 'mix_bad_' + p.id, sev: 'info', title: `Team: ${esc(p.name)} (${esc(MK.ROLES[p.role].name)}) leistet ${p.skill === 1 ? 'schwach' : 'unterdurchschnittlich'}`, why: esc(MK.ROLES[p.role].bad) + ` Kosten: ${f.eur0(p.cost)}/Monat.`, steps: [S.day - p.start < 90 ? 'Noch in der Probezeit: Trennung kostet nur ein halbes Monatsgehalt' : 'Trennung kostet Kündigungsfrist & Abfindung (ca. 1,5 Monatskosten)', 'Alternativ als Freelancer oder mit einer anderen Person neu besetzen'], fix: [btn('Marketing & Team', 'nav', { v: 'mix' })], views: ['mix'] });
+    if (S.goals && S.day > 30 && S.company.cash > S.company.startCash * 1.4 && !st.actions.some((a) => a.status !== 'done') && GD.ctx(S).mode !== 'save') out.push({ id: 'mix_cash', sev: 'info', chance: true, title: `💡 Freies Kapital: ${f.eur0(S.company.cash)} in der Kasse`, why: 'Ihre Kasse ist deutlich gewachsen. Sie könnten in Team oder Marketing investieren – oder Kredite tilgen. Investitionen zählen in den Marketing-Deckungsbeitrag.', steps: ['Engpässe prüfen: Fehlen Creatives (Ermüdung), sauberes Tracking, schnelle Landingpages?', 'Marketing-Aktion mit guter Branchen-Passung und passender Saison planen', 'Markenkampagne vorher mit Budget ausstatten'], fix: [btn('Marketing & Team', 'nav', { v: 'mix' })], views: ['overview', 'mix'] });
+    return out;
+  }
+
   GD.emergencies = function (S) {
     const out = [];
     const act = S.market.events.filter((e) => e.start <= S.day && e.end >= S.day && !e.done && PB[e.def]);
@@ -76,7 +103,7 @@
       const left = ev.end > S.day + 500 ? 'bis behoben' : `noch ${ev.end - S.day + 1} Tag(e)`;
       out.push({ id: 'emg_' + ev.id, ev, sev: p.sev, chance: p.chance, title: `${p.chance ? '💡 Chance' : p.sev === 'bad' ? '🚨 Notfall' : '⚠️ Ereignis'}: ${esc(ev.name)}`, why: `${p.impact} <span class="small muted">(${left})</span>`, steps: p.steps.concat((p.dont || []).map((d) => `<span class="down">Nicht:</span> ${d}`)), fix: p.fix, views: ['overview', 'events', 'campaigns'] });
     }
-    return out.concat(others(S)).map((x) => ({ ...x, emg: true, views: x.views || ['overview', 'events'] }));
+    return out.concat(others(S), mixItems(S)).map((x) => ({ ...x, emg: true, views: x.views || ['overview', 'events'] }));
   };
   const origProblems = GD.problems;
   GD.problems = function (S) {
