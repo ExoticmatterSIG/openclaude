@@ -107,6 +107,9 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
 - **Geführte Hilfe nach Unternehmensvorgaben:** Budget-Tipps berücksichtigen Monatsbudget-Hochrechnung, Sparrunden,
   Sanktionen und Ziele (Kurs „Budget sparen / halten / Wachstum"), schlagen Umschichtungen statt Erhöhungen vor und
   markieren Google-Empfehlungen, die den Vorgaben widersprechen.
+- **Dynamische Ziele & Zielvereinbarung:** Ziele werden täglich aus Quartalsplan × Marktlage × Budgetänderungen (nur
+  Restzeitraum) abgeleitet und auf das Erreichbare gedeckelt. Genehmigte Personalkosten (100 %) und Marketing-Aktionen
+  (80 %) zählen nicht gegen den Marketing-Deckungsbeitrag; dafür enthält der Plan je Teammitglied +2 % (max. +10 %).
 - **⚙️ Simulationskriterien:** Einstellungen → Reiter „Simulationskriterien" legt alle Regeln offen – live aus dem Spielstand:
   Tagesablauf, Formeln für Suchvolumen, Ad Rank/CPC, CTR, Conversion-Rate, Qualitätsfaktor, Messung, Mitbewerber, Pacing,
   alle Zufalls- und Geschäftsleitungsereignisse mit Wahrscheinlichkeiten, Kalender, Branchenparameter, Schwierigkeitsgrade,

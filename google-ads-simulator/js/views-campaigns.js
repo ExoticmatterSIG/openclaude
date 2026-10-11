@@ -106,7 +106,8 @@
           const req = GL.required(S, t);
           const unit = (x) => (t.unit === 'eur' ? f.eur0(x) : f.num1(x));
           const reqHtml = req && req.need > 0 ? `<div class="tiny ${req.cur !== null && req.cur < req.need ? 'down' : 'muted'}">Nötig ab heute: ${unit(req.need)} je 100 € Budget${req.cur !== null ? ` · aktuell ${unit(req.cur)}` : ''}${t.capped ? ' · an Budget angepasst' : ''}</div>` : '';
-          return `<div style="margin-top:8px"><div class="small" style="display:flex;justify-content:space-between;gap:8px"><span>${U.esc(t.name)}</span><span class="${onTrack ? 'up' : 'down'}">${GL.fmt(t, v)} / ${t.dir === 'min' ? '≥' : '≤'} ${GL.fmt(t, t.value)}</span></div><div class="bar"><i style="width:${share * 100}%;background:${onTrack ? 'var(--good)' : 'var(--s3)'}"></i></div>${reqHtml}</div>`;
+          const relHtml = t.relief ? `<div class="tiny muted" title="Zielvereinbarung: Genehmigte Personalkosten (${Math.round(GL.RELIEF.staff * 100)} %) und Marketing-Aktionen (${Math.round(GL.RELIEF.act * 100)} %) sind eingeplant und werden beim Ist-Wert herausgerechnet. Im Gegenzug enthält der Plan je Teammitglied +${Math.round(GL.RELIEF.uplift * 100)} % mehr Deckungsbeitrag aus den Anzeigen.">Team-/Aktionskosten eingeplant: ${unit(t.relief)} – zählen nicht gegen dieses Ziel</div>` : '';
+          return `<div style="margin-top:8px"><div class="small" style="display:flex;justify-content:space-between;gap:8px"><span>${U.esc(t.name)}</span><span class="${onTrack ? 'up' : 'down'}">${GL.fmt(t, v)} / ${t.dir === 'min' ? '≥' : '≤'} ${GL.fmt(t, t.value)}</span></div><div class="bar"><i style="width:${share * 100}%;background:${onTrack ? 'var(--good)' : 'var(--s3)'}"></i></div>${reqHtml}${relHtml}</div>`;
         }).join('');
         const ms = GL.monthSpend(S), mr = ms / g.monthBudget;
         const dim = U.daysInMonth(M.today(S)), dom = M.today(S).getUTCDate();

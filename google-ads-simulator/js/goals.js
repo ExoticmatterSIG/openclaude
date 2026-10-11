@@ -50,6 +50,7 @@
       t.base = t.value;
       if (SCALABLE.has(t.id)) t.value = GL.round(t.base * (g.mkt || 1));
     }
+    g.planBudget = g.monthBudget;
   };
   const SCALABLE = new Set(['vol', 'accts', 'profit', 'conv']);
   GL.round = (v) => (v >= 1e5 ? Math.round(v / 1e5) * 1e5 : v >= 1000 ? Math.round(v / 100) * 100 : Math.round(v));
@@ -62,6 +63,24 @@
     const season = U.avg(h, (x) => ind.season[U.dayToDate(S.startDate, x.day).getUTCMonth()]);
     return U.clamp(U.avg(h, (x) => x.demand) * Math.pow(season, 0.7), 0.7, 1.35);
   };
+
+  // ---------- Zielvereinbarung: genehmigte Investitionen werden eingeplant ----------
+  // Genehmigte Personalkosten werden voll, Marketing-Aktionen zu 80 % vom Deckungsbeitragsziel abgezogen.
+  // Im Gegenzug erwartet die Geschäftsleitung je Teammitglied +2 % mehr Deckungsbeitrag aus den Anzeigen (max. +10 %).
+  GL.RELIEF = { staff: 1, act: 0.8, uplift: 0.02, upliftMax: 0.1 };
+  GL.relief = function (S) {
+    const g = S.goals, MK = G.MKT;
+    if (!g || !MK || !S.mkt) return { total: 0, staff: 0, act: 0, future: 0 };
+    const a = g.periodStart, b = S.day - 1, remaining = Math.max(0, g.periodEnd - S.day + 1);
+    const staffSoFar = MK.costSum(S, a, b, ['staff']), future = MK.dailyStaff(S) * remaining, act = MK.costSum(S, a, b, ['act']) + MK.costSum(S, S.day, S.day, ['act']);
+    const staff = staffSoFar + future;
+    const heads = S.mkt.staff.filter((p) => p.status === 'active').length;
+    return { total: staff * GL.RELIEF.staff + act * GL.RELIEF.act, staff, act, future, uplift: Math.min(GL.RELIEF.upliftMax, heads * GL.RELIEF.uplift) };
+  };
+  // Eingeplante Investitionen im Zeitraum (zählen nicht gegen das Deckungsbeitragsziel)
+  GL.plannedCosts = (S, a, b) => (G.MKT && S.mkt ? G.MKT.costSum(S, a, b, ['staff']) * GL.RELIEF.staff + G.MKT.costSum(S, a, b, ['act']) * GL.RELIEF.act : 0);
+  // Marketing-Kosten (Team, Aktionen, Abfindungen, Strafen) im Zeitraum – für den Deckungsbeitrag nur aus Anzeigen
+  GL.mktCosts = (S, a, b) => (G.MKT && S.mkt ? G.MKT.costSum(S, a, b) : 0);
 
   // ---------- Machbarkeit: Ziele an Budget & erreichbare Effizienz koppeln ----------
   GL.initBudget = function (S) {
@@ -84,7 +103,7 @@
       const fixed = (S.company.fixedPerDay || 0) * (b - a + 1);
       const bench = 1 / (ind.aov * ind.margin * 0.45);
       out.conv = Math.max(cost > 500 ? conv / cost : 0, bench * 0.6);
-      out.profit = Math.max(cost > 500 ? (gross - ads - (other - fixed)) / cost : 0, 0.3);
+      out.profit = Math.max(cost > 500 ? (gross - ads - (other - fixed) + GL.plannedCosts(S, a, b)) / cost : 0, 0.3);
     }
     return out;
   };
@@ -106,10 +125,22 @@
       if (t.dir === 'max') { const lim = +(v * 0.8).toFixed(2); if (t.value < lim) { t.value = lim; t.capped = true; } }
       else { const lim = +Math.max(v * 1.2, be * 1.05).toFixed(2); if (t.value > lim) { t.value = lim; t.capped = true; } }
     }
+    // Mengenziele dynamisch: Marktlage × Budgetänderungen im laufenden Quartal (nur der Restzeitraum skaliert) − eingeplante Investitionen
+    const len = g.periodEnd - g.periodStart + 1, r = U.clamp(remaining / len, 0, 1);
+    const bf = U.clamp(g.monthBudget / (g.planBudget || g.monthBudget), 0.5, 1.6);
+    const rel = GL.relief(S);
+    g.relief = rel;
+    for (const t of g.targets) {
+      if (!SCALABLE.has(t.id) || t.base === undefined) continue;
+      t.plan = GL.round(t.base * (g.mkt || 1) * ((1 - r) + r * bf) * (t.id === 'profit' ? 1 + (rel.uplift || 0) : 1));
+      t.relief = t.id === 'profit' ? GL.round(rel.total) : 0; // eingeplant, zählt nicht gegen das Ziel
+      t.value = t.plan;
+      t.capped = false;
+    }
     for (const t of g.targets) {
       if (!eff[t.id] || t.dir !== 'min') continue;
       const cap = GL.round((prog[t.id] || 0) + eff[t.id] * 1.2 * daily * remaining);
-      if (t.value > cap) { t.value = Math.max(cap, 1); t.capped = true; } else t.capped = false;
+      if (t.value > cap) { t.value = Math.max(cap, 1); t.capped = true; }
     }
   };
   // Was müsste ab heute je 100 € Budget erreicht werden?
@@ -122,7 +153,7 @@
     let cur = null;
     if (cost > 200) {
       if (S.bank) { let v = 0, n = 0; for (let d = a; d < S.day; d++) { const f = S.bank.flows[d]; if (f) { v += f.inTG + f.inFG; n += f.nGiro + f.nVisa; } } cur = t.id === 'vol' ? v / cost : n / cost; }
-      else { let c = 0, gr = 0, ad = 0, ot = 0; for (let d = a; d < S.day; d++) { const p = S.pnl[d]; if (p) { c += p.conv; gr += p.gross; ad += p.ads; ot += p.other; } } cur = t.id === 'conv' ? c / cost : (gr - ad - (ot - (S.company.fixedPerDay || 0) * (S.day - a))) / cost; }
+      else { let c = 0, gr = 0, ad = 0, ot = 0; for (let d = a; d < S.day; d++) { const p = S.pnl[d]; if (p) { c += p.conv; gr += p.gross; ad += p.ads; ot += p.other; } } cur = t.id === 'conv' ? c / cost : (gr - ad - (ot - (S.company.fixedPerDay || 0) * (S.day - a)) + GL.plannedCosts(S, a, S.day - 1)) / cost; }
     }
     return { need: need * 100, cur: cur === null ? null : cur * 100 };
   };
@@ -247,7 +278,7 @@
       let gross = 0, ads = 0, other = 0, rev = 0, conv = 0;
       for (let d = a; d <= b; d++) { const p = S.pnl[d]; if (p) { gross += p.gross; ads += p.ads; other += p.other; rev += p.rev; conv += p.conv; } }
       const fixed = (S.company.fixedPerDay || 0) * (b - a + 1);
-      out.profit = gross - ads - (other - fixed); out.rroas = ads ? rev / ads : null; out.conv = conv;
+      out.profit = gross - ads - (other - fixed) + GL.plannedCosts(S, a, b); out.rroas = ads ? rev / ads : null; out.conv = conv;
     }
     return out;
   };
@@ -328,7 +359,6 @@
       const mf = GL.marketFactor(S);
       if (Math.abs(mf - g.mkt) > 0.06) {
         const old = g.mkt; g.mkt = mf;
-        for (const t of g.targets) if (SCALABLE.has(t.id)) t.value = GL.round(t.base * mf);
         S.alerts.unshift({ day: S.day, level: 'info', text: `Forecast-Anpassung: Die Geschäftsleitung passt die Mengenziele an die Marktlage an (${mf > old ? '+' : ''}${Math.round((mf / old - 1) * 100)} %).` });
       }
     }

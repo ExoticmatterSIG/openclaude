@@ -49,9 +49,23 @@
     noshow: { name: 'Event-Flop: kaum Besucher', desc: 'Das Event war schlecht beworben und kaum besucht – die Kosten sind weitgehend verloren.', fine: 0 },
   };
 
+  // Kosten buchen (gehen über die Tages-GuV) und für die Zielvereinbarung kategorisiert merken
+  const addCost = (MK.addCost = function (S, amt, kind) {
+    if (!(amt > 0)) return;
+    S._otherCosts = (S._otherCosts || 0) + amt;
+    const st = MK.state(S), d = (st.cost[S.day] = st.cost[S.day] || {});
+    d[kind] = (d[kind] || 0) + amt;
+  });
+  MK.costSum = function (S, a, b, kinds) {
+    const st = S.mkt; if (!st || !st.cost) return 0;
+    let x = 0;
+    for (let d = Math.max(0, a); d <= b; d++) { const c = st.cost[d]; if (c) for (const [k, v] of Object.entries(c)) if (!kinds || kinds.includes(k)) x += v; }
+    return x;
+  };
   MK.state = function (S) {
     if (!S.mkt) S.mkt = { staff: [], cands: null, actions: [], spent: 0, nid: 1, adhoc: [], requests: [] };
     if (!S.mkt.requests) S.mkt.requests = [];
+    if (!S.mkt.cost) S.mkt.cost = {};
     return S.mkt;
   };
   MK.scale = function (S) { return S.goals ? S.goals.monthBudget : (M.STARTER_BUDGET[S.ind] || 100) * 30.4; };
@@ -97,7 +111,7 @@
     if (err) return err;
     if (active(S).some((p) => p.role === c.role)) return 'Diese Rolle ist bereits besetzt.';
     const fee = c.mode === 'free' || MK.ROLES[c.role].agency ? 0 : Math.round(MK.ROLES[c.role].salary * 0.25);
-    S._otherCosts = (S._otherCosts || 0) + fee;
+    addCost(S, fee, 'staff');
     st.staff.push({ id: nid(st, 'em'), role: c.role, mode: c.mode, name: c.name, skill: c.skill, seen: c.seen, cost: c.cost, start: S.day, status: 'active', revealed: false });
     M.log(S, 'Team', MK.ROLES[c.role].name, `${c.name} eingestellt (${c.mode === 'free' ? 'Freelancer' : MK.ROLES[c.role].agency ? 'Retainer' : 'Festanstellung'}, ${U.fmt.eur0(c.cost)}/Monat${fee ? ', Recruiting ' + U.fmt.eur0(fee) : ''})`);
     return true;
@@ -107,7 +121,7 @@
     if (!p || p.status !== 'active') return 0;
     const probation = S.day - p.start < 90 || p.mode === 'free' || MK.ROLES[p.role].agency;
     const sev = Math.round(probation ? p.cost * 0.5 : p.cost * 1.5);
-    S._otherCosts = (S._otherCosts || 0) + sev;
+    addCost(S, sev, 'other');
     p.status = 'left'; p.end = S.day;
     M.log(S, 'Team', MK.ROLES[p.role].name, `${p.name} – Zusammenarbeit beendet (${probation ? 'Probezeit/Kündigungsfrist' : 'Kündigungsfrist & Abfindung'}: ${U.fmt.eur0(sev)})`);
     return sev;
@@ -159,7 +173,7 @@
     const disaster = r() < U.clamp(t.risk * Math.pow(1.5 - q, 2), 0.004, 0.5) ? Math.round(p.start + r.range(0.2, 0.8) * t.dur) : null;
     const baseRev = U.avg(Array.from({ length: 14 }, (_, i) => (S.pnl[S.day - 1 - i] ? S.pnl[S.day - 1 - i].rev : 0)), (x) => x);
     const baseBrand = U.sum(S.queries.filter((x) => x.brand === 'player'), (x) => x.vol);
-    S._otherCosts = (S._otherCosts || 0) + p.cost;
+    addCost(S, p.cost, 'act');
     st.spent += p.cost;
     const a = { id: nid(st, 'ma'), type: o.type, size: o.size, exec: o.exec, cost: p.cost, start: p.start, end: p.start + t.dur - 1, tailEnd: p.start + t.dur - 1 + t.tail, q, lift, disaster, disasterDone: false, qExp: p.qExp, baseRev, baseBrand, aware0: S.company.awareness, rev: 0, days: 0, status: 'planned', report: null, overload: false };
     st.actions.unshift(a);
@@ -208,7 +222,7 @@
     if (!st) return;
     const day = S.day;
     // Personalkosten
-    S._otherCosts = (S._otherCosts || 0) + MK.dailyStaff(S);
+    addCost(S, MK.dailyStaff(S), 'staff');
     for (const p of st.staff) {
       if (p.status !== 'active') continue;
       const w = power(S, p), R = MK.ROLES[p.role];
@@ -266,7 +280,7 @@
     if (kind === 'noshow') { a.lift *= 0.25; S.market.log.unshift({ day, name: D.name, desc: D.desc, sev: 'warn' }); S.alerts.unshift({ day, level: 'bad', text: '📉 ' + D.name }); a.flop = true; return; }
     st.adhoc.push({ start: day, end: day + 14, brand: 1 - 0.3 * scale, cvr: 1 - 0.15 * scale, kind });
     if (S.psy) { S.psy.trust = Math.max(0.3, S.psy.trust - 0.08 * scale); S.psy.rating = Math.max(1, S.psy.rating - 0.15 * scale); }
-    if (D.fine) S._otherCosts = (S._otherCosts || 0) + D.fine;
+    if (D.fine) addCost(S, D.fine, 'other');
     if (S.goals && G.GOALS.changeTrust) G.GOALS.changeTrust(S, -5 * scale, D.name);
     if (a.id) { a.lift *= 0.5; a.hit = kind; }
     S.market.log.unshift({ day, name: '🔥 ' + D.name, desc: D.desc + (D.fine ? ` Kosten: ${U.fmt.eur0(D.fine)}.` : ''), sev: 'crit', mkt: kind });
