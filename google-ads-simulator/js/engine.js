@@ -89,7 +89,7 @@
   E.upcomingCal = function (S, n = 6) {
     const date = M.today(S), y = date.getUTCFullYear(), out = [];
     for (const yy of [y, y + 1]) for (const ev of D.CAL_EVENTS) {
-      if (ev.id === 'quartalsende') continue;
+      if (['quartalsende', 'feiertag', 'brueckentag'].includes(ev.id)) continue;
       const [a, b] = ev.range(yy, new Date(Date.UTC(yy, 0, 1)));
       const fx = ev.fx[S.ind];
       if (fx && b >= date) out.push({ ev, start: a, end: b, fx });
@@ -120,12 +120,17 @@
     if (def.name.includes('{theme}') || def.desc.includes('{theme}')) { theme = rng.pick(ind.themes); ev.theme = theme.id; }
     const fill = (s) => s.replace(/\{comp\}/g, comp ? comp.name : '').replace(/\{theme\}/g, theme ? theme.name : '');
     ev.name = fill(def.name); ev.desc = fill(def.desc);
+    // Stärke variiert je Ereignis (log-normal): 0,4 = sehr schwach … 2,2 = sehr stark
+    ev.mag = def.fixedMag ? 1 : U.clamp(rng.logn(0.38), 0.4, 2.2);
+    if (!def.fixedMag && def.sev !== 'crit') ev.desc += ev.mag >= 1.5 ? ' Die Auswirkungen sind ungewöhnlich stark.' : ev.mag <= 0.65 ? ' Die Auswirkungen dürften gering bleiben.' : '';
     // Einmalige Effekte
     switch (def.id) {
       case 'comp_pause': comp.pausedUntil = ev.end; break;
       case 'consent': S.account.consentRate = Math.max(0.5, S.account.consentRate - 0.06); break;
       case 'ai_overview': S.market.ctrInfo = Math.max(0.4, S.market.ctrInfo * 0.72); break;
       case 'tracking': if (!S.account.trackingOk) return null; S.account.trackingOk = false; break;
+      case 'review_bomb': if (S.psy) { S.psy.rating = Math.max(1, S.psy.rating - 0.12 * ev.mag); S.psy.trust = Math.max(0.3, S.psy.trust - 0.02 * ev.mag); } break;
+      case 'brand_bidding': if (comp.style === 'aggressive' || comp.style === 'marketplace') return null; break;
       case 'core_update': for (const c of S.competitors) c.qs = U.clamp(c.qs + rng.int(-1, 1), 3, 10); break;
       case 'brand_safety':
         S.company.awareness = Math.max(0.01, S.company.awareness - 0.03);
@@ -151,7 +156,7 @@
     };
     const mul = (obj, k, v) => { obj[k] = (obj[k] || 1) * v; };
     for (const c of activeCal(S, date)) {
-      fx.cal.push(c.ev.name);
+      fx.cal.push(c.ev.nameFor ? c.ev.nameFor(date) : c.ev.name);
       for (const [k, v] of Object.entries(c.fx)) {
         if (k === 'themeDemand') for (const [t, m] of Object.entries(v)) mul(fx.themeDemand, t, m);
         else if (k === 'themeCvr') for (const [t, m] of Object.entries(v)) mul(fx.themeCvr, t, m);
@@ -160,25 +165,39 @@
     }
     for (const e of S.market.events) {
       if (e.start > S.day || e.end < S.day) continue;
+      const k = e.mag || 1, sc = (base) => 1 + (base - 1) * k; // Effekt skaliert mit der Stärke
       switch (e.def) {
-        case 'comp_sale': mul(fx.compAggrById, e.comp, 1.5); fx.playerCvr *= 0.88; break;
-        case 'bid_war': mul(fx.compAggrTheme, e.theme, 1.55); break;
-        case 'core_update': fx.demand *= 1.06; break;
-        case 'recession': fx.cvr *= 0.86; fx.demand *= 0.93; fx.aov *= 0.94; fx.compBudget *= 0.85; break;
-        case 'boom': fx.cvr *= 1.07; fx.demand *= 1.05; fx.aov *= 1.03; break;
-        case 'viral': mul(fx.themeDemand, e.theme, 2.6); mul(fx.themeCvr, e.theme, 0.8); break;
-        case 'media_negative': fx.demand *= 0.88; fx.cvr *= 0.86; break;
-        case 'supply': fx.stockOut[e.theme] = 0.7; mul(fx.themeCvr, e.theme, 0.45); break;
-        case 'capacity': fx.capacity *= 0.7; break;
+        case 'comp_sale': mul(fx.compAggrById, e.comp, sc(1.5)); fx.playerCvr *= sc(0.88); break;
+        case 'bid_war': mul(fx.compAggrTheme, e.theme, sc(1.55)); break;
+        case 'core_update': fx.demand *= sc(1.06); break;
+        case 'recession': fx.cvr *= sc(0.86); fx.demand *= sc(0.93); fx.aov *= sc(0.94); fx.compBudget *= sc(0.85); break;
+        case 'boom': fx.cvr *= sc(1.07); fx.demand *= sc(1.05); fx.aov *= sc(1.03); break;
+        case 'viral': mul(fx.themeDemand, e.theme, sc(2.6)); mul(fx.themeCvr, e.theme, sc(0.8)); break;
+        case 'media_negative': fx.demand *= sc(0.88); fx.cvr *= sc(0.86); break;
+        case 'supply': fx.stockOut[e.theme] = U.clamp(0.7 * k, 0.2, 1); mul(fx.themeCvr, e.theme, U.clamp(sc(0.45), 0.1, 1)); break;
+        case 'capacity': fx.capacity *= U.clamp(sc(0.7), 0.3, 1); break;
         case 'lp_down': fx.playerDown = true; break;
-        case 'click_fraud': fx.invalidRate = 0.16; break;
-        case 'heat': fx.demand *= 0.93; ['jacken', 'heizung', 'hoodies'].forEach((t) => mul(fx.themeDemand, t, 0.55)); ['ostsee'].forEach((t) => mul(fx.themeDemand, t, 1.4)); mul(fx.themeDemand, 'home', 0.8); break;
-        case 'cold': [['jacken', 1.5], ['heizung', 2.2], ['sanitaer', 1.35], ['ski', 1.35], ['wellness', 1.2], ['hoodies', 1.2]].forEach(([t, m]) => mul(fx.themeDemand, t, m)); break;
-        case 'price_hike': mul(fx.compAggrById, e.comp, 0.85); fx.playerCvr *= 1.08; break;
-        case 'influencer': fx.brandVol *= 4; break;
+        case 'click_fraud': fx.invalidRate = Math.max(fx.invalidRate, U.clamp(0.16 * k, 0.06, 0.35)); break;
+        case 'heat': fx.demand *= sc(0.93); ['jacken', 'heizung', 'hoodies'].forEach((t) => mul(fx.themeDemand, t, sc(0.55))); ['ostsee'].forEach((t) => mul(fx.themeDemand, t, sc(1.4))); break;
+        case 'cold': [['jacken', 1.5], ['heizung', 2.2], ['sanitaer', 1.35], ['ski', 1.35], ['wellness', 1.2], ['hoodies', 1.2]].forEach(([t, m]) => mul(fx.themeDemand, t, sc(m))); break;
+        case 'price_hike': mul(fx.compAggrById, e.comp, sc(0.85)); fx.playerCvr *= sc(1.08); break;
+        case 'influencer': fx.brandVol *= sc(4); break;
+        case 'brand_bidding': fx.brandAttack = e.comp; mul(fx.compAggrById, e.comp, sc(1.15)); break;
+        case 'payment_outage': fx.playerCvr *= U.clamp(sc(0.55), 0.1, 1); break;
+        case 'test_winner': fx.playerCvr *= sc(1.08); fx.brandVol *= sc(1.25); break;
+        case 'review_bomb': fx.playerCvr *= sc(0.9); break;
+        case 'google_glitch': fx.ctr *= U.clamp(sc(0.85), 0.5, 1); break;
+        case 'shipping_strike': fx.playerCvr *= sc(0.86); break;
+        case 'wm_match': break;
         default: if (G.BANK && S.bank) G.BANK.fx(S, e, fx, mul);
       }
     }
+    // Wetter: Regen treibt Online-Nachfrage, Sonne bremst sie; Kälte + Regen lösen Notdienste aus
+    const w = S.market.weather || 0, ind = S.ind;
+    if (['fashion', 'fitness', 'saas'].includes(ind)) fx.demand *= 1 + 0.025 * w;
+    if (ind === 'travel') fx.demand *= 1 + 0.03 * w;
+    if (ind === 'local' && w > 0 && [0, 1, 10, 11].includes(date.getUTCMonth())) { mul(fx.themeDemand, 'heizung', 1 + 0.08 * w); mul(fx.themeDemand, 'sanitaer', 1 + 0.05 * w); }
+    fx.weather = w;
     if (G.MKT) G.MKT.fx(S, fx, mul);
     return fx;
   }
@@ -186,6 +205,7 @@
   function updateMarket(S, rng, date, diff) {
     const m = S.market, ind = M.ind(S);
     m.cpcTrend = (m.cpcTrend || 1) * 1.00019;
+    m.weather = U.clamp(0.8 * (m.weather || 0) + 0.38 * rng.normal(), -2, 2); // > 0 = Regen/Schmuddelwetter, < 0 = sonnig
     m.demand = U.clamp(m.demand * Math.exp(0.012 * rng.normal()) + (1 - m.demand) * 0.02, 0.7, 1.4);
     m.cpcIdx = U.clamp(m.cpcIdx * Math.exp(0.006 * rng.normal()) + (m.cpcTrend - m.cpcIdx) * 0.03, 0.6, 2.5);
     m.cvrIdx = U.clamp(m.cvrIdx * Math.exp(0.008 * rng.normal()) + (1 - m.cvrIdx) * 0.03, 0.75, 1.3);
@@ -385,7 +405,7 @@
     }
     for (const q of S.queries) {
       if (!ctx.cands[q.id] && !ctx.shopCands[q.id] && q.brand !== 'player') continue;
-      ctx.compsByQ[q.id] = ctx.comps.filter((c) => (q.brand ? q.brand === c.id || q.brand === 'player' && c.style === 'aggressive' || (q.brand !== 'player' && c.style === 'aggressive') : c.themes.includes(q.theme)));
+      ctx.compsByQ[q.id] = ctx.comps.filter((c) => (q.brand ? q.brand === c.id || q.brand === 'player' && (c.style === 'aggressive' || c.id === fx.brandAttack) || (q.brand !== 'player' && c.style === 'aggressive') : c.themes.includes(q.theme)));
     }
     // Assist-Kampagnen (für datengetriebene Attribution)
     const upper = S.campaigns.filter((c) => ['display', 'video', 'demandgen'].includes(c.type) && c.rt.active);

@@ -190,16 +190,31 @@
   };
 
   // ---------- Ad-hoc-Vorgaben der Geschäftsleitung ----------
+  // Ad-hoc-Vorgaben der Geschäftsleitung. p = Basiswahrscheinlichkeit/Tag, cd = Abklingzeit in Tagen, w(S) = situativer Faktor
+  const measureGap = (S) => { const v = E.derive(E.sumRange(S, 'acct', 'all', Math.max(0, S.day - 60), S.day - 1)); return v.rconv > 0 ? Math.max(0, 1 - v.conv / v.rconv) : 0; };
+  const onTrack = (S) => { const g = S.goals; const prog = GL.progress(S); const el = U.clamp((S.day - g.periodStart) / Math.max(1, g.periodEnd - g.periodStart + 1), 0, 1); return g.targets.filter((t) => (t.dir === 'min' ? U.div(prog[t.id] || 0, t.value) >= el * 0.95 : GL.met(t, prog[t.id]))).length / Math.max(1, g.targets.length); };
   const MGMT = [
-    { id: 'spar', p: 0.004, name: 'Sparrunde', desc: 'Die Geschäftsführung verordnet eine Sparrunde: Monatsbudget −20 % ab sofort.', fx: (S, g) => { g.monthBudget = Math.round((g.monthBudget * 0.8) / 100) * 100; } },
-    { id: 'push', p: 0.004, name: 'Wachstumsoffensive', desc: 'Der Vorstand will mehr Wachstum: Mengenziele +15 %, Monatsbudget +10 %.', fx: (S, g) => { g.mult *= 1.15; g.monthBudget = Math.round((g.monthBudget * 1.1) / 100) * 100; GL.setTargets(S); } },
-    { id: 'audit', p: 0.003, name: 'Interne Revision prüft Ihr Reporting', desc: 'Die Revision vergleicht gemeldete Conversions mit den echten Geschäftszahlen.', fx: (S) => {
-      const v = E.derive(E.sumRange(S, 'acct', 'all', S.day - 60, S.day - 1));
-      const gap = 1 - U.div(v.conv, v.rconv || v.conv);
-      if (gap > 0.35 || !S.account.trackingOk) GL.changeTrust(S, -8, 'Revision: große Lücke zwischen Reporting und Realität'); else GL.changeTrust(S, 4, 'Revision: sauberes Reporting');
+    { id: 'spar', p: 0.003, cd: 150, name: 'Sparrunde', desc: 'Die Geschäftsführung verordnet eine Sparrunde: Monatsbudget −20 % ab sofort.', w: (S) => (S.market.fx && S.market.fx.cvr < 0.95 ? 1.8 : 1), fx: (S, g) => { g.monthBudget = Math.round((g.monthBudget * 0.8) / 100) * 100; } },
+    { id: 'push', p: 0.003, cd: 150, name: 'Wachstumsoffensive', desc: 'Der Vorstand will mehr Wachstum: Mengenziele +15 %, Monatsbudget +10 %.', w: (S) => (onTrack(S) > 0.6 ? 1.5 : 0.6), fx: (S, g) => { g.mult *= 1.15; g.monthBudget = Math.round((g.monthBudget * 1.1) / 100) * 100; GL.setTargets(S); } },
+    // Revision: umso wahrscheinlicher, je größer die Messlücke – bei sauberem Reporting selten
+    { id: 'audit', p: 0.0012, cd: 180, name: 'Interne Revision prüft Ihr Reporting', desc: 'Die Revision vergleicht gemeldete Conversions mit den echten Geschäftszahlen.', w: (S) => { const gap = measureGap(S); return (!S.account.trackingOk ? 4 : gap > 0.3 ? 2.5 : gap > 0.2 ? 1.2 : 0.35); }, fx: (S, g, ev) => {
+      const gap = measureGap(S), issues = [];
+      if (!S.account.trackingOk) issues.push('tracking');
+      if (S.account.consentMode !== 'advanced') issues.push('consent');
+      if (!S.account.enhancedConv) issues.push('ec');
+      if (!S.account.autoTagging) issues.push('tag');
+      const bad = gap > 0.3 || !S.account.trackingOk;
+      ev.result = bad ? 'bad' : 'ok'; ev.gap = gap; ev.issues = issues;
+      ev.desc = bad ? `Ergebnis: Das Reporting weicht um ${Math.round(gap * 100)} % von den echten Zahlen ab${issues.length ? ' – Mängel: ' + issues.map((i) => ({ tracking: 'Tracking-Ausfall', consent: 'kein erweiterter Consent Mode', ec: 'keine erweiterten Conversions', tag: 'automatisches Tagging aus' }[i])).join(', ') : ''}.` : `Ergebnis: Reporting sauber (Abweichung ${Math.round(gap * 100)} %). Die Geschäftsleitung ist zufrieden.`;
+      if (bad) GL.changeTrust(S, -8, 'Revision: große Lücke zwischen Reporting und Realität'); else GL.changeTrust(S, 4, 'Revision: sauberes Reporting');
     } },
-    { id: 'newboss', p: 0.0015, name: 'Neue Geschäftsführung', desc: 'Eine neue Geschäftsführung übernimmt. Die Ziele steigen um 10 %, das Vertrauen startet neu bei 50.', fx: (S, g) => { g.mult *= 1.1; g.trust = 50; g.sanction = 0; g.pip = null; GL.setTargets(S); } },
+    { id: 'review', p: 0.002, cd: 90, name: 'Vorstand fordert KPI-Präsentation', desc: 'Sie stellen dem Vorstand die Zielerreichung vor.', fx: (S, g, ev) => { const r = onTrack(S); ev.result = r >= 0.6 ? 'ok' : 'bad'; ev.desc = r >= 0.6 ? `Ergebnis: ${Math.round(r * 100)} % der Ziele im Plan – der Vorstand ist überzeugt.` : `Ergebnis: Nur ${Math.round(r * 100)} % der Ziele im Plan – der Vorstand ist skeptisch.`; GL.changeTrust(S, r >= 0.6 ? 3 : -4, 'KPI-Präsentation'); } },
+    { id: 'bonus', p: 0.0015, cd: 120, name: 'Restbudget aus einer anderen Abteilung', desc: 'Eine andere Abteilung gibt Budget ab: Monatsbudget +15 % für diesen Monat.', w: (S) => (S.goals.trust >= 60 ? 1.5 : 0.5), fx: (S, g) => { if (!g.bonusBase) g.bonusBase = g.monthBudget; g.monthBudget = Math.round((g.monthBudget * 1.15) / 100) * 100; g.bonusMonth = U.dayToDate(S.startDate, S.day).getUTCMonth(); } },
+    { id: 'freeze', p: 0.0015, cd: 150, name: 'Einstellungsstopp', desc: 'Konzernweiter Einstellungsstopp für 60 Tage: keine neuen Mitarbeitenden oder Freelancer.', w: (S) => (S.market.fx && S.market.fx.cvr < 0.95 ? 2 : 1), fx: (S, g) => { g.freezeUntil = S.day + 60; } },
+    { id: 'praise', p: 0.002, cd: 120, name: 'Lob vom Vorstand', desc: 'Der Vorstand lobt die Entwicklung im Online-Marketing.', w: (S) => (onTrack(S) >= 0.8 && S.goals.trust >= 55 ? 1.5 : 0), fx: (S) => GL.changeTrust(S, 5, 'Lob vom Vorstand') },
+    { id: 'newboss', p: 0.0008, cd: 365, name: 'Neue Geschäftsführung', desc: 'Eine neue Geschäftsführung übernimmt. Die Ziele steigen um 10 %, das Vertrauen startet neu bei 50.', fx: (S, g) => { g.mult *= 1.1; g.trust = 50; g.sanction = 0; g.pip = null; GL.setTargets(S); } },
   ];
+  GL.MGMT = MGMT;
 
   // Vertrauens-Update zum Monatsende anhand der zeitanteiligen Zielerreichung
   function monthlyReview(S, overspent) {
@@ -271,14 +286,22 @@
       S.alerts.unshift({ day: S.day, level: 'good', text: 'Bewährungsplan bestanden. Die Geschäftsleitung beobachtet Sie aber weiter genau.' });
     }
     // Ad-hoc-Vorgaben
-    if (S.day > 20 && rng) for (const ev of MGMT) {
-      if (rng() < ev.p * (M.DIFFICULTY[S.settings.difficulty]?.events || 1)) {
-        ev.fx(S, g);
-        g.events.unshift({ day: S.day, name: ev.name });
-        S.market.log.unshift({ day: S.day, name: 'Geschäftsleitung: ' + ev.name, desc: ev.desc, sev: 'warn' });
-        S.alerts.unshift({ day: S.day, level: 'warn', text: '🧑‍💼 ' + ev.name + ': ' + ev.desc });
-        S._pauseRequest = S._pauseRequest || ev.name;
-        break;
+    if (S.day > 20 && rng) {
+      g.mgmtLast = g.mgmtLast || {};
+      const lastAny = Math.max(-999, ...Object.values(g.mgmtLast));
+      if (S.day - lastAny >= 30) for (const ev of MGMT) {
+        if (S.day - (g.mgmtLast[ev.id] ?? -999) < ev.cd) continue;
+        const w = ev.w ? ev.w(S) : 1;
+        if (w > 0 && rng() < ev.p * w * (M.DIFFICULTY[S.settings.difficulty]?.events || 1)) {
+          const rec = { day: S.day, name: ev.name, id: ev.id, desc: ev.desc };
+          ev.fx(S, g, rec);
+          g.mgmtLast[ev.id] = S.day;
+          g.events.unshift(rec);
+          S.market.log.unshift({ day: S.day, name: 'Geschäftsleitung: ' + ev.name, desc: rec.desc, sev: rec.result === 'ok' ? 'info' : 'warn' });
+          S.alerts.unshift({ day: S.day, level: rec.result === 'ok' ? 'good' : 'warn', text: '🧑‍💼 ' + ev.name + ': ' + rec.desc });
+          if (rec.result !== 'ok') S._pauseRequest = S._pauseRequest || ev.name;
+          break;
+        }
       }
     }
     // Monatsabschluss (Controlling)
@@ -300,6 +323,7 @@
         S.alerts.unshift({ day: S.day, level: 'warn', text: `Controlling: Nur ${U.fmt.pct(ratio, 0)} des Monatsbudgets genutzt. Nicht genutzte Mittel verfallen.` });
       }
       if (prevDay !== g.periodEnd) monthlyReview(S, overspent);
+      if (g.bonusBase) { g.monthBudget = Math.round(g.monthBudget / 1.15 / 100) * 100; g.bonusBase = null; S.alerts.unshift({ day: S.day, level: 'info', text: 'Controlling: Das Zusatzbudget der anderen Abteilung ist ausgelaufen.' }); }
       // Dynamische Ziele: Anpassung an die Marktlage
       const mf = GL.marketFactor(S);
       if (Math.abs(mf - g.mkt) > 0.06) {

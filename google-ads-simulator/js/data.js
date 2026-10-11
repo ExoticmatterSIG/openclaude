@@ -394,6 +394,21 @@
       fx: { _all: { compAggr: 1.12, cpc: 1.05 } } },
   ];
 
+  // Bundesweite gesetzliche Feiertage & Brückentage (Läden zu → online mehr; B2B ruht)
+  const HOLI = (y) => { const e = U.easter(y), D = (m, d) => new Date(Date.UTC(y, m, d)); return [['Neujahr', D(0, 1)], ['Karfreitag', U.addDays(e, -2)], ['Ostermontag', U.addDays(e, 1)], ['Tag der Arbeit', D(4, 1)], ['Christi Himmelfahrt', U.addDays(e, 39)], ['Pfingstmontag', U.addDays(e, 50)], ['Tag der Deutschen Einheit', D(9, 3)], ['1. Weihnachtstag', D(11, 25)], ['2. Weihnachtstag', D(11, 26)]]; };
+  const sameDay = (a, b) => a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
+  const NEVER = [new Date(Date.UTC(1970, 0, 1)), new Date(Date.UTC(1970, 0, 1))];
+  CAL_EVENTS.push(
+    { id: 'feiertag', name: 'Gesetzlicher Feiertag', nameFor: (d) => 'Feiertag: ' + ((HOLI(d.getUTCFullYear()).find(([, x]) => sameDay(x, d)) || ['Feiertag'])[0]), range: (y, d) => { const h = HOLI(y).find(([, x]) => d && sameDay(x, d)); return h ? [h[1], h[1]] : NEVER; },
+      fx: { fashion: { demand: 1.12, cvr: 1.03 }, saas: { demand: 0.45, cvr: 0.7 }, local: { demand: 1.25, cpc: 1.1 }, travel: { demand: 1.15 }, insurance: { demand: 0.75 }, fitness: { demand: 1.05 }, vwbank: { demand: 0.5, cvr: 0.6 } } },
+    { id: 'brueckentag', name: 'Brückentag', range: (y, d) => { if (!d) return NEVER; const hs = HOLI(y).map(([, x]) => x); const br = hs.flatMap((x) => (x.getUTCDay() === 4 ? [U.addDays(x, 1)] : x.getUTCDay() === 2 ? [U.addDays(x, -1)] : [])); return br.some((x) => sameDay(x, d)) ? [d, d] : NEVER; },
+      fx: { saas: { demand: 0.7, cvr: 0.85 }, vwbank: { demand: 0.7 }, travel: { demand: 1.1 }, fashion: { demand: 1.04 }, insurance: { demand: 0.85 } } },
+    { id: 'wm2026', name: 'Fußball-WM 2026', range: (y) => (y === 2026 ? [new Date(Date.UTC(2026, 5, 11)), new Date(Date.UTC(2026, 6, 19))] : NEVER),
+      fx: { _all: { demand: 0.97, cvr: 0.98 }, fashion: { demand: 1.02 }, travel: { demand: 0.94 } } },
+    { id: 'em2028', name: 'Fußball-EM 2028', range: (y) => (y === 2028 ? [new Date(Date.UTC(2028, 5, 9)), new Date(Date.UTC(2028, 6, 9))] : NEVER),
+      fx: { _all: { demand: 0.97, cvr: 0.98 }, travel: { demand: 0.95 } } },
+  );
+
   // ---------- Zufallsereignisse ----------
   // p = Wahrscheinlichkeit pro Tag (Basis), dur = Dauer [min,max] in Tagen
   const RANDOM_EVENTS = [
@@ -418,6 +433,12 @@
     { id: 'influencer', p: 0.002, dur: [3, 8], sev: 'info', name: 'Influencer erwähnt Ihre Marke', desc: 'Ein reichweitenstarker Creator empfiehlt Sie. Die Suchanfragen nach Ihrer Marke steigen stark.' },
     { id: 'ai_overview', p: 0.0012, dur: [1, 1], sev: 'info', name: 'KI-Übersichten in der Suche ausgeweitet', desc: 'Google zeigt bei informationalen Suchen häufiger KI-Antworten. Klickraten auf Informationssuchen sinken dauerhaft.' },
     { id: 'policy_update', p: 0.002, dur: [1, 1], sev: 'warn', name: 'Google-Ads-Richtlinien aktualisiert', desc: 'Neue Richtlinien zu Superlativen und Versprechen: Bestehende Anzeigen werden erneut geprüft.' },
+    { id: 'brand_bidding', p: 0.0035, dur: [14, 45], sev: 'warn', name: '{comp} bietet auf Ihre Marke', desc: '{comp} schaltet Anzeigen auf Ihre Markensuchen. Markenklicks werden teurer, ein Teil geht an den Mitbewerber.' },
+    { id: 'payment_outage', p: 0.002, dur: [1, 2], sev: 'warn', fixedMag: false, name: 'Störung beim Zahlungsanbieter', desc: 'Ein Teil der Bezahlvorgänge schlägt fehl. Kaufwillige brechen im Checkout ab.', notIndustries: ['vwbank', 'local'] },
+    { id: 'test_winner', p: 0.0015, dur: [30, 60], sev: 'info', name: 'Testsieger-Auszeichnung für Ihr Angebot', desc: 'Ein Verbrauchermagazin kürt Ihr Angebot zum Testsieger. Vertrauen und Markensuchen steigen.' },
+    { id: 'review_bomb', p: 0.002, dur: [7, 14], sev: 'warn', name: 'Welle negativer Bewertungen', desc: 'Eine Häufung schlechter Bewertungen (teils unberechtigt) drückt Ihren Schnitt. Kunden zögern.' },
+    { id: 'google_glitch', p: 0.0015, dur: [1, 1], sev: 'info', name: 'Kurzzeitige Auslieferungsstörung bei Google', desc: 'Google meldet Probleme bei der Anzeigenauslieferung in Teilen Europas. Klickraten sind heute niedriger.' },
+    { id: 'shipping_strike', p: 0.002, dur: [3, 8], sev: 'warn', name: 'Warnstreik bei Paketdienstleistern', desc: 'Lieferungen verzögern sich. Kunden bestellen zurückhaltender oder bei Händlern mit Lagerabholung.', industries: ['fashion', 'fitness'] },
     { id: 'reporting_delay', p: 0.002, dur: [1, 2], sev: 'info', name: 'Störung: Google-Ads-Berichte verzögert', desc: 'Ein technisches Problem bei Google verzögert die Conversion-Daten um einige Tage.' },
   ];
 

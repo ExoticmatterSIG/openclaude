@@ -50,7 +50,8 @@
   };
 
   MK.state = function (S) {
-    if (!S.mkt) S.mkt = { staff: [], cands: null, actions: [], spent: 0, nid: 1, adhoc: [] };
+    if (!S.mkt) S.mkt = { staff: [], cands: null, actions: [], spent: 0, nid: 1, adhoc: [], requests: [] };
+    if (!S.mkt.requests) S.mkt.requests = [];
     return S.mkt;
   };
   MK.scale = function (S) { return S.goals ? S.goals.monthBudget : (M.STARTER_BUDGET[S.ind] || 100) * 30.4; };
@@ -59,7 +60,7 @@
   const active = (S) => MK.state(S).staff.filter((x) => x.status === 'active');
   MK.has = (S, role) => active(S).find((x) => x.role === role) || null;
   // Wirkung eines Teammitglieds (0…1 Ramp-up × Freelancer-Anteil), Qualität skill 1–5
-  const power = (S, p) => U.clamp((S.day - p.start) / Math.max(1, MK.ROLES[p.role].onboard), 0, 1) * (p.mode === 'free' ? 0.55 : 1);
+  const power = (S, p) => (p.absentUntil && p.absentUntil >= S.day ? 0 : 1) * U.clamp((S.day - p.start) / Math.max(1, MK.ROLES[p.role].onboard), 0, 1) * (p.mode === 'free' ? 0.55 : 1);
   MK.monthlyStaff = (S) => U.sum(active(S), (p) => p.cost);
   MK.dailyStaff = (S) => MK.monthlyStaff(S) / 30.4;
 
@@ -87,6 +88,7 @@
     if (S.company.cash < cost) return 'Nicht genug Geld in der Kasse für den ersten Monat.';
     if (g && g.trust < 35) return 'Einstellungsstopp: Die Geschäftsleitung genehmigt bei Ihrem aktuellen Vertrauen keine neuen Personalkosten.';
     if (g && g.sanction >= 2) return 'Während der Sanktion genehmigt die Geschäftsleitung keine neuen Stellen.';
+    if (g && g.freezeUntil && g.freezeUntil > S.day) return `Einstellungsstopp der Geschäftsleitung (noch ${g.freezeUntil - S.day} Tage).`;
     return null;
   };
   MK.hire = function (S, c) {
@@ -197,7 +199,7 @@
       }
       if (a.type === 'sale' && day > a.end && day <= a.end + MK.TYPES.sale.hangover) fx.playerCvr *= 0.94; // Rabattgewöhnung
     }
-    for (const x of st.adhoc || []) if (day >= x.start && day <= x.end) { fx.brandVol *= x.brand || 1; fx.playerCvr *= x.cvr || 1; }
+    for (const x of st.adhoc || []) if (day >= x.start && day <= x.end) { fx.brandVol *= x.brand || 1; fx.playerCvr *= x.cvr || 1; fx.ctr *= x.ctr || 1; }
   };
 
   // ---------- Täglich (vor dem Tagesabschluss) ----------
@@ -212,6 +214,8 @@
       const w = power(S, p), R = MK.ROLES[p.role];
       if (!p.revealed && day - p.start >= 30) { p.revealed = true; S.alerts.unshift({ day, level: p.skill <= 2 ? 'bad' : p.skill >= 4 ? 'good' : 'info', text: `Team: Nach 30 Tagen zeigt sich – ${p.name} (${R.name}) leistet ${['', 'schwach', 'unterdurchschnittlich', 'solide', 'stark', 'herausragend'][p.skill]}.` }); }
       if (w <= 0) continue;
+      teamEvents(S, rng, p);
+      if (p.status !== 'active' || power(S, p) <= 0) continue;
       if (p.role === 'creative') for (const ad of S.ads) if (ad.status === 'enabled' && ad.fat) ad.fat *= 1 - (ad.type === 'rsa' ? 0.004 : 0.012) * (p.skill / 3) * w;
       if (p.role === 'analyst') {
         if (!S.account.trackingOk && rng() < (0.35 + 0.15 * p.skill) * w) { S.account.trackingOk = true; for (const e of S.market.events) if (e.def === 'tracking' && !e.done) { e.end = day - 1; e.done = true; } S.alerts.unshift({ day, level: 'good', text: `Team: ${p.name} hat den Tracking-Ausfall entdeckt und behoben.` }); M.log(S, 'Team', 'Web-Analyse', 'Tracking repariert'); }
@@ -229,6 +233,9 @@
       if (p.role === 'sea' && (day - p.start) % 7 === 6) seaHousekeeping(S, p, rng);
       if (p.role === 'agency' && (day - p.start) % 30 === 29 && G.R) agencyMonth(S, p);
     }
+    // Offene Gehaltsforderungen: Frist abgelaufen = abgelehnt
+    st.requests = st.requests || [];
+    for (const r of st.requests.slice()) if (day > r.until) MK.decide(S, r.id, false);
     // Aktionen
     for (const a of st.actions) {
       const t = MK.TYPES[a.type];
@@ -266,6 +273,53 @@
     S.alerts.unshift({ day, level: 'bad', text: '🔥 ' + D.name });
     S._pauseRequest = S._pauseRequest || D.name;
   }
+  // ---------- Team-Ereignisse ----------
+  const fullName = (p) => `${p.name} (${MK.ROLES[p.role].name})`;
+  function teamEvents(S, rng, p) {
+    const st = S.mkt, day = S.day, R = MK.ROLES[p.role];
+    if (p.absentUntil && p.absentUntil >= day) return;
+    if (R.agency) {
+      if (rng() < 0.0015) { st.adhoc.push({ start: day, end: day + 6, ctr: 0.96 }); S.alerts.unshift({ day, level: 'warn', text: `Agentur ${p.name}: Ihr Account-Manager wechselt – eine Woche lang holpert die Betreuung.` }); }
+      return;
+    }
+    // Krankheit (häufiger im Winter) und Urlaub (häufiger im Sommer)
+    const m = U.dayToDate(S.startDate, day).getUTCMonth();
+    if (rng() < (m <= 2 || m >= 10 ? 0.0045 : 0.0025)) { const d = rng.int(2, 9); p.absentUntil = day + d; S.alerts.unshift({ day, level: 'info', text: `Team: ${fullName(p)} ist ${d} Tage krankgeschrieben – die Aufgaben ruhen so lange.` }); return; }
+    if (p.mode !== 'free' && rng() < (m >= 5 && m <= 7 ? 0.006 : 0.0018) && day - (p.lastVacation ?? p.start) > 120) { const d = rng.int(7, 15); p.absentUntil = day + d; p.lastVacation = day; S.alerts.unshift({ day, level: 'info', text: `Team: ${fullName(p)} ist ${d} Tage im Urlaub.` }); return; }
+    // Abwerbung: gute Leute mit Gehalt unter Marktniveau
+    const market = R.salary * (0.82 + 0.1 * p.skill) * (p.mode === 'free' ? 0.45 : 1);
+    if (!st.requests.some((r) => r.pid === p.id) && p.skill >= 3 && day - p.start > 60 && rng() < 0.0008 * (p.skill - 2) * (p.cost < market * 1.05 ? 2 : 0.5)) {
+      const amount = Math.round((p.cost * U.clamp(rng.range(0.08, 0.22), 0.05, 0.3)) / 10) * 10;
+      st.requests.push({ id: 'rq' + st.nid++, pid: p.id, type: 'raise', amount, until: day + 14 });
+      S.alerts.unshift({ day, level: 'warn', text: `Team: ${fullName(p)} hat ein Angebot eines Mitbewerbers und bittet um ${U.fmt.eur0(amount)} mehr pro Monat. Entscheidung bis in 14 Tagen.` });
+      S._pauseRequest = S._pauseRequest || 'Gehaltsforderung';
+      return;
+    }
+    // Gute Idee (starke Leute) / Fehler (schwache Leute)
+    if (p.skill >= 4 && rng() < 0.0025) {
+      const idea = { creative: ['Neue Bildwelt für die Anzeigen', { ctr: 1.05 }], copy: ['Neue Headline-Formel mit starkem Nutzenversprechen', { ctr: 1.06 }], dev: ['Checkout um einen Schritt verkürzt', { cvr: 1.06 }], social: ['Ein Post geht viral', { brand: 1.6 }], analyst: ['Attributionsfehler gefunden – bessere Gebotsentscheidungen', { cvr: 1.03 }], sea: ['Profitable Long-Tail-Suchbegriffe entdeckt', { cvr: 1.02 }] }[p.role];
+      if (idea) { st.adhoc.push({ start: day, end: day + 20, ...idea[1] }); S.alerts.unshift({ day, level: 'good', text: `💡 Team: ${idea[0]} – Idee von ${fullName(p)}.` }); M.log(S, 'Team', R.name, 'Idee: ' + idea[0]); }
+      return;
+    }
+    if (p.skill <= 2 && rng() < 0.003) {
+      if (p.role === 'copy') { const ad = S.ads.find((a) => a.type === 'rsa' && a.status === 'enabled' && a.policy.status !== 'disapproved'); if (ad && ad.headlines.length) { ad.headlines[0].t = ad.headlines[0].t.replace(/!*$/, '') + '!'; M.reviewAd(S, ad, true); S.alerts.unshift({ day, level: 'bad', text: `Team: ${fullName(p)} hat einen Anzeigentitel mit Ausrufezeichen veröffentlicht – die Anzeige wird abgelehnt. Bitte korrigieren.` }); } }
+      else if (p.role === 'analyst') { if (S.account.trackingOk) { S.account.trackingOk = false; S.alerts.unshift({ day, level: 'bad', text: `Team: Bei einer Tag-Manager-Änderung von ${fullName(p)} ist das Conversion-Tracking ausgefallen.` }); S._pauseRequest = S._pauseRequest || 'Tracking-Fehler'; } }
+      else if (p.role === 'creative') { st.adhoc.push({ start: day, end: day + 10, ctr: 0.94 }); S.alerts.unshift({ day, level: 'bad', text: `Team: Neue Creatives von ${fullName(p)} kommen schlecht an – die Klickrate sinkt vorübergehend.` }); }
+    }
+  }
+  MK.decide = function (S, rid, accept) {
+    const st = MK.state(S), r = st.requests.find((x) => x.id === rid);
+    if (!r) return;
+    const p = st.staff.find((x) => x.id === r.pid);
+    st.requests = st.requests.filter((x) => x.id !== rid);
+    if (!p || p.status !== 'active') return;
+    if (accept) { p.cost += r.amount; M.log(S, 'Team', MK.ROLES[p.role].name, `Gehalt für ${p.name} um ${U.fmt.eur0(r.amount)} erhöht`); return 'stay'; }
+    const r2 = rngFor(S, 4242 + p.skill);
+    if (r2() < 0.35 + 0.1 * p.skill) { p.status = 'left'; p.end = S.day; S.alerts.unshift({ day: S.day, level: 'bad', text: `Team: ${fullName(p)} hat gekündigt und wechselt zum Mitbewerber.` }); M.log(S, 'Team', MK.ROLES[p.role].name, `${p.name} hat gekündigt`); return 'left'; }
+    S.alerts.unshift({ day: S.day, level: 'info', text: `Team: ${fullName(p)} bleibt trotz Absage – vorerst.` });
+    return 'stay';
+  };
+
   MK.DISASTERS = DISASTERS;
   function report(S, a) {
     const t = MK.TYPES[a.type], days = a.tailEnd - a.start + 1;

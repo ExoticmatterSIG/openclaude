@@ -107,6 +107,16 @@ Alternativ: `python3 -m http.server` im Ordner starten und `http://localhost:800
 - **Geführte Hilfe nach Unternehmensvorgaben:** Budget-Tipps berücksichtigen Monatsbudget-Hochrechnung, Sparrunden,
   Sanktionen und Ziele (Kurs „Budget sparen / halten / Wachstum"), schlagen Umschichtungen statt Erhöhungen vor und
   markieren Google-Empfehlungen, die den Vorgaben widersprechen.
+- **⚙️ Simulationskriterien:** Einstellungen → Reiter „Simulationskriterien" legt alle Regeln offen – live aus dem Spielstand:
+  Tagesablauf, Formeln für Suchvolumen, Ad Rank/CPC, CTR, Conversion-Rate, Qualitätsfaktor, Messung, Mitbewerber, Pacing,
+  alle Zufalls- und Geschäftsleitungsereignisse mit Wahrscheinlichkeiten, Kalender, Branchenparameter, Schwierigkeitsgrade,
+  Shop-Hebel, Marketing & Team und Bank-Modus (`js/criteria.js`).
+- **Mehr Varianz & Realismus:** Ereignisse haben eine zufällige Stärke (0,4–2,2), neue Ereignisse (Mitbewerber bietet auf
+  Ihre Marke, Zahlungsanbieter-Störung, Testsieger, Bewertungswelle, Google-Störung, Paketstreik), gesetzliche Feiertage und
+  Brückentage, Wetter (Zufallsprozess) und Fußball-Großturniere. Geschäftsleitungs-Ereignisse mit Abklingzeiten und
+  situativen Wahrscheinlichkeiten (Revision v. a. bei Messlücken, mit Ergebnisbericht; neu: KPI-Präsentation, Zusatzbudget,
+  Einstellungsstopp, Lob). Team-Ereignisse: Krankheit, Urlaub, Abwerbung mit Gehaltsforderung, Ideen und Fehler.
+  Leitfäden empfehlen nur noch Maßnahmen, die nicht schon umgesetzt sind.
 - **🎬 Marketing & Team:** Überschüssiges Geld in Personal (Creative, Texter, Web-Analyse, Web-Entwicklung/CRO, Social Media,
   Werkstudent SEA – fest oder als Freelancer) und eine Performance-Agentur investieren. Kandidaten werden nach Eindruck
   gewählt, die echte Qualität zeigt sich nach 30 Tagen; Fehlbesetzungen schaden (schwächere CTR, falsche Ausschlüsse,
@@ -190,6 +200,7 @@ js/overview.js   Übersicht als Baukasten (Karten, Layout, zusätzliche Karten)
 js/emergency.js  Notfall-Assistent: Leitfäden und Schnellaktionen für Ereignisse
 js/showme.js     „Zeig mir wo": klickbare Bezüge mit Hervorhebung
 js/marketing.js, views-mix.js   Marketing-Mix & Team (Personal, Agentur, Offline-Aktionen)
+js/criteria.js   Einstellungen › Simulationskriterien (offengelegte Regeln)
 js/academy-content.js, academy.js   Akademie: Kursinhalte und Lern-UI mit Sandbox
 js/ui.js, views-*.js, forms.js, charts.js, app.js   Oberfläche
 test/smoke.mjs   Engine-Test ohne Browser: node test/smoke.mjs
