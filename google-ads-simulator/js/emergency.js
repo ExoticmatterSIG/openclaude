@@ -70,7 +70,7 @@
       out.push({ id: 'emg_sanction', sev: g.sanction >= 2 ? 'bad' : 'warn', title: `🚨 Geschäftsleitung: ${esc(lv.name)}`, why: `Vertrauen ${Math.round(g.trust)} / 100.${g.pip ? ` Bewährungsplan: noch ${g.pip.until - S.day} Tage, Ziel Vertrauen ≥ 35.` : ''} Weitere Verschlechterung führt bis zur Kündigung.`, steps: ['Monatsbudget strikt einhalten (Hochrechnung in der Karte „Budget-Pacing")', `Quartalsziele priorisieren: ${cx.targets.filter((t) => !t.onTrack).map((t) => esc(t.name)).join(', ') || 'alle im Plan – halten'}`, ...(measureSteps(S).length ? ['Messung sauber halten: ' + measureSteps(S).join(', ')] : []), 'Keine riskanten Experimente, keine Dark Patterns', 'Schulden reduzieren, wenn möglich'], fix: [btn('Unternehmen & GuV', 'nav', { v: 'business' }), btn('Kampagnen', 'nav', { v: 'campaigns' })], views: ['overview', 'business'] });
     }
     const spar = g && g.events && g.events.find((e) => e.name === 'Sparrunde' && S.day - e.day <= 14);
-    if (spar) { const cx = GD.ctx(S); out.push({ id: 'emg_spar', sev: 'warn', title: '🚨 Sparrunde: Monatsbudget −20 %', why: `Neues Monatsbudget ${f.eur0(cx.mb)}, Hochrechnung ${f.eur0(cx.proj)}.`, steps: [`Summe der Tagesbudgets auf höchstens ${f.eur0(cx.maxDaily)} senken (aktuell ${f.eur0(cx.budgets)})`, 'Zuerst bei Kampagnen mit dem geringsten Deckungsbeitrag kürzen', 'Profitable Kampagnen schützen; Streuverluste ausschließen', 'Google-Empfehlungen zu Budgeterhöhungen ablehnen'], fix: [btn('Budgets auf Vorgabe anpassen', 'gdfitbudget'), btn('Kampagnen', 'nav', { v: 'campaigns' })], views: ['overview', 'campaigns', 'business'] }); }
+    if (spar) { const cx = GD.ctx(S); out.push({ id: 'emg_spar', sev: 'warn', title: '🚨 Sparrunde: Monatsbudget −20 %', why: `Neues Monatsbudget ${f.eur0(cx.mb)}, Hochrechnung ${f.eur0(cx.proj)}.`, steps: [cx.maxDaily < 1 ? `Monatsbudget ist bereits ausgeschöpft – Kampagnen bis Monatsende pausieren (aktuell ${f.eur0(cx.budgets)}/Tag: ${GD.budgetList(S)})` : `Summe der Tagesbudgets aller Kampagnen auf höchstens ${f.eur0(cx.maxDaily)} senken (aktuell ${f.eur0(cx.budgets)}: ${GD.budgetList(S)})`, 'Zuerst bei Kampagnen mit dem geringsten Deckungsbeitrag kürzen', 'Profitable Kampagnen schützen; Streuverluste ausschließen', 'Google-Empfehlungen zu Budgeterhöhungen ablehnen'], fix: [btn('Budgets auf Vorgabe anpassen', 'gdfitbudget'), btn('Kampagnen', 'nav', { v: 'campaigns' })], views: ['overview', 'campaigns', 'business'] }); }
     const push = g && g.events && g.events.find((e) => e.name === 'Wachstumsoffensive' && S.day - e.day <= 14);
     if (push) out.push({ id: 'emg_push', sev: 'info', chance: true, title: '📈 Wachstumsoffensive: Ziele +15 %, Budget +10 %', why: 'Mehr Volumen wird erwartet – bei weiter sauberer Rentabilität.', steps: ['Profitable Kampagnen mit Budget-Engpass ausbauen', 'Zielwerte leicht lockern (Geführte Hilfe im Gebotsformular zeigt die Auswirkungen)', 'Neue Keywords/Kampagnentypen testen'], fix: [btn('Kampagnen', 'nav', { v: 'campaigns' })], views: ['overview', 'campaigns'] });
     const audit = g && g.events && g.events.find((e) => /Revision/.test(e.name) && S.day - e.day <= 7);
@@ -174,6 +174,14 @@
     for (const c of cs) M.setStatus(S, 'Kampagne', c, 'paused');
     after(`${cs.length} Kampagne(n) pausiert – nach der Behebung „Kampagnen wieder aktivieren"`);
   };
+  // Bis Monatsende pausieren – am 1. des Folgemonats automatisch fortsetzen
+  ACT.gdpausemonth = () => {
+    const S = APP.S, cs = live(S);
+    if (!cs.length) return UI.toast('Keine aktiven Kampagnen');
+    S.guidePauseMonth = { ids: cs.map((c) => c.id), month: M.today(S).getUTCMonth() };
+    for (const c of cs) M.setStatus(S, 'Kampagne', c, 'paused');
+    after(`${cs.length} Kampagne(n) bis Monatsende pausiert – Fortsetzung am 1. automatisch`);
+  };
   ACT.gdresumeall = () => {
     const S = APP.S, ids = S.guidePaused || [];
     const cs = S.campaigns.filter((c) => ids.includes(c.id) && c.status === 'paused');
@@ -196,6 +204,7 @@
   ACT.gdfitbudget = () => {
     const S = APP.S, cx = GD.ctx(S), cs = live(S);
     const tot = cs.reduce((a, c) => a + c.budget, 0);
+    if (cx.maxDaily < 1) return UI.toast('Das Monatsbudget ist bereits ausgeschöpft – nutzen Sie „Bis Monatsende pausieren"', 'bad');
     if (!tot || tot <= cx.maxDaily) return UI.toast('Budgets passen bereits zur Vorgabe');
     const k = cx.maxDaily / tot;
     for (const c of cs) M.updateCampaign(S, c, { budget: Math.max(1, Math.floor(c.budget * k)) }, 'Budget an Monatsvorgabe angepasst');

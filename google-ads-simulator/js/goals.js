@@ -337,6 +337,7 @@
     }
     // Monatsabschluss (Controlling)
     if (date.getUTCDate() === 1 && prevDay >= 0) {
+      if (S.guidePauseMonth) { const ids = S.guidePauseMonth.ids; S.guidePauseMonth = null; const cs = S.campaigns.filter((c) => ids.includes(c.id) && c.status === 'paused'); for (const c of cs) M.setStatus(S, 'Kampagne', c, 'enabled'); if (cs.length) S.alerts.unshift({ day: S.day, level: 'info', text: `Neuer Monat: ${cs.length} bis Monatsende pausierte Kampagne(n) wieder aktiviert. Tagesbudgets an das neue Monatsbudget anpassen.` }); }
       const pd = U.addDays(date, -1);
       const ms = prevDay - (pd.getUTCDate() - 1);
       const spend = E.sumRange(S, 'acct', 'all', Math.max(0, ms), prevDay)[E.I.cost];

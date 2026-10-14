@@ -95,6 +95,7 @@
     if (/^budget_/.test(r.id) && cx.room > 0 && cx.room < Infinity) return `<div class="callout small" style="margin:6px 0">🏢 Spielraum im Monatsbudget: ${f.eur0(cx.room)} (≈ ${f.eur0(cx.roomDaily)}/Tag). Prüfen Sie, ob die vorgeschlagene Erhöhung hineinpasst.</div>`;
     return '';
   };
+  GD.budgetList = (S) => S.campaigns.filter((c) => c.status === 'enabled' && !c.isTrial).map((c) => `${esc(c.name)} ${f.eur0(c.budget)}`).join(' + ') || '–';
   GD.modeText = { save: 'Budget sparen', hold: 'Budget halten', grow: 'Wachstum mit Budget-Spielraum', free: 'keine Vorgaben' };
   GD.ctxHtml = function (S, cx = GD.ctx(S)) {
     if (!cx.g) return '';
@@ -275,7 +276,14 @@
     const r30 = [Math.max(0, S.day - 30), S.day - 1];
     const cx = GD.ctx(S);
     // Vorgaben der Geschäftsleitung
-    if (cx.g && S.day > 3 && cx.proj > cx.mb * 1.02) P.push({ id: 'mbudget', sev: 'bad', views: ['overview', 'campaigns', 'business'], title: `Monatsbudget wird voraussichtlich überschritten (${f.eur0(cx.proj)} von ${f.eur0(cx.mb)})`, why: 'Das Controlling zieht Überschreitungen vom Folgemonat ab und die Geschäftsleitung verliert Vertrauen.', steps: [`Summe der Tagesbudgets bis Monatsende auf höchstens <b>${f.eur0(cx.maxDaily)}</b> senken (aktuell ${f.eur0(cx.budgets)})`, 'Zuerst bei Kampagnen mit dem geringsten Deckungsbeitrag kürzen', 'Alternativ Zielwerte verschärfen (Ziel-ROAS höher / Ziel-CPA niedriger)'], fix: [btn('Zu Kampagnen', 'nav', { v: 'campaigns' })] });
+    if (cx.g && S.day > 3 && cx.proj > cx.mb * 1.02) {
+      const list = GD.budgetList(S);
+      const exhausted = cx.maxDaily < 1;
+      P.push({ id: 'mbudget', sev: 'bad', views: ['overview', 'campaigns', 'business'], title: exhausted ? `Monatsbudget bereits ausgeschöpft (${f.eur0(cx.ms)} von ${f.eur0(cx.mb)} ausgegeben)` : `Monatsbudget wird voraussichtlich überschritten (${f.eur0(cx.proj)} von ${f.eur0(cx.mb)})`,
+        why: (exhausted ? `In diesem Monat ist kein Budget mehr übrig – jeder weitere Euro erhöht die Überschreitung (Hochrechnung bis Monatsende: ${f.eur0(cx.proj)}, noch ${cx.daysLeft} Tag(e)). ` : '') + `Das Controlling zieht Überschreitungen vom Folgemonat ab und die Geschäftsleitung verliert Vertrauen. <br><span class="small">Tagesbudgets aller aktiven Kampagnen im Konto (unabhängig vom Kampagnenfilter): ${list} = <b>${f.eur0(cx.budgets)}/Tag</b>.</span>`,
+        steps: exhausted ? ['Kampagnen bis Monatsende pausieren (Schnellaktion – sie starten am 1. automatisch wieder)', 'Oder nur die wichtigste, profitabelste Kampagne mit minimalem Budget weiterlaufen lassen – die Überschreitung wird dann vom Folgemonat abgezogen', 'Ab dem neuen Monat: Summe der Tagesbudgets ≤ Monatsbudget ÷ 30,4 ' + `(≈ ${f.eur0(cx.mb / 30.4)}/Tag)`] : [`Summe der Tagesbudgets bis Monatsende auf höchstens <b>${f.eur0(cx.maxDaily)}</b> senken (aktuell ${f.eur0(cx.budgets)})`, 'Zuerst bei Kampagnen mit dem geringsten Deckungsbeitrag kürzen', 'Alternativ Zielwerte verschärfen (Ziel-ROAS höher / Ziel-CPA niedriger)'],
+        fix: exhausted ? [btn('Bis Monatsende pausieren', 'gdpausemonth'), btn('Zu Kampagnen', 'nav', { v: 'campaigns' })] : [btn(`Budgets anteilig auf ${f.eur0(cx.maxDaily)}/Tag senken`, 'gdfitbudget'), btn('Zu Kampagnen', 'nav', { v: 'campaigns' })] });
+    }
     // Geld & Messung
     if (S.company.cash <= 0) P.push({ id: 'cash', sev: 'bad', views: ['overview', 'billing', 'business'], title: 'Kasse leer – alle Anzeigen gestoppt', why: 'Ohne Zahlungsmittel kann Google nicht abbuchen; die Auslieferung steht.', steps: ['Kredit aufnehmen oder Kosten senken', 'Unprofitable Kampagnen pausieren', 'Danach Tage simulieren und Kasse beobachten'], fix: [btn('Kredit aufnehmen', 'capital')] });
     if (!S.account.trackingOk) P.push({ id: 'trk', sev: 'bad', views: ['overview', 'conversions', 'campaigns'], title: 'Conversion-Tracking funktioniert nicht', why: 'Google sieht keine Conversions mehr. Smart Bidding senkt die Gebote, Berichte zeigen falsche Werte.', steps: ['Tools → Conversions öffnen', '„Tag testen" klicken – zeigt, ob das Tag fehlt', '„Tracking reparieren" ausführen', 'Ein paar Tage simulieren: Conversions erscheinen wieder (nachgemeldet)'], fix: [btn('Zu Conversions', 'nav', { v: 'conversions' })] });
@@ -309,7 +317,7 @@
         if (!prof) steps = ['Die Kampagne ist nicht profitabel – Budget NICHT erhöhen', 'Gebote bzw. Zielwerte senken → mehr, aber günstigere Klicks', 'Streuverluste über Suchbegriffe ausschließen'];
         else if (cx.mode === 'save') {
           extra = ` <b>Aber:</b> Die Geschäftsleitung verlangt ${cx.spar ? 'nach der Sparrunde ' : ''}Budgetdisziplin – Hochrechnung ${f.eur0(cx.proj)} von ${f.eur0(cx.mb)} Monatsbudget. Mehr Budget würde das Controlling-Ziel verletzen und Vertrauen kosten.`;
-          steps = [donor ? `Budget <b>umschichten</b> statt erhöhen: z. B. von „${esc(donor.o.name)}" (geringerer Deckungsbeitrag je €) zu dieser Kampagne – Gesamtbudget bleibt gleich` : 'Budget nicht erhöhen – Gesamtausgaben müssen gleich bleiben oder sinken', 'Gebote/Zielwerte leicht senken: mehr Klicks fürs gleiche Geld (z. B. Ziel-ROAS +10 % bzw. CPC −10 %)', 'Streuverluste ausschließen und Werbezeitplan auf die stärksten Zeiten konzentrieren', `Summe aller Tagesbudgets höchstens ${f.eur0(cx.maxDaily)} bis Monatsende`];
+          steps = [donor ? `Budget <b>umschichten</b> statt erhöhen: z. B. von „${esc(donor.o.name)}" (geringerer Deckungsbeitrag je €) zu dieser Kampagne – Gesamtbudget bleibt gleich` : 'Budget nicht erhöhen – Gesamtausgaben müssen gleich bleiben oder sinken', 'Gebote/Zielwerte leicht senken: mehr Klicks fürs gleiche Geld (z. B. Ziel-ROAS +10 % bzw. CPC −10 %)', 'Streuverluste ausschließen und Werbezeitplan auf die stärksten Zeiten konzentrieren', cx.maxDaily < 1 ? 'Monatsbudget ist bereits ausgeschöpft – bis Monatsende eher pausieren als umschichten' : `Summe aller Tagesbudgets (alle Kampagnen) höchstens ${f.eur0(cx.maxDaily)} bis Monatsende`];
           sev = 'info'; title = `${esc(c.name)}: Budget knapp – aber Sparvorgabe beachten`;
         } else if (cx.room > 0) {
           const inc = Math.min(c.budget * 0.25, cx.roomDaily);
