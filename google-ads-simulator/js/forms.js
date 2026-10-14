@@ -553,10 +553,22 @@
   };
 
   // ---------- Benachrichtigungen & Hilfe ----------
+  UI.alertKey = (a) => a.day + '|' + String(a.text).slice(0, 48).replace(/[^\wäöüÄÖÜß]+/g, '');
   ACT.alerts = (el) => {
     const S = APP.S;
-    const list = S.alerts.slice(0, 40).map((a) => `<li><span class="sev ${a.level}"></span><span class="when">${U.fmtShort(U.dayToDate(S.startDate, a.day))}</span><span class="what small">${esc(a.text)}</span></li>`).join('');
-    UI.popover(el, `<div class="ph">Benachrichtigungen <a data-act="alertsread">Alle als gelesen markieren</a></div><ul class="feed">${list || '<li class="muted">Keine Benachrichtigungen</li>'}</ul>`);
+    const list = S.alerts.slice(0, 40).map((a) => `<li class="alertrow" data-act="alertgo" data-k="${esc(UI.alertKey(a))}" title="In News & Ereignisse anzeigen"><span class="sev ${a.level}"></span><span class="when">${U.fmtShort(U.dayToDate(S.startDate, a.day))}</span><span class="what small">${esc(a.text)}</span><span class="go">›</span></li>`).join('');
+    UI.popover(el, `<div class="ph">Benachrichtigungen <span style="margin-left:auto;display:flex;gap:10px"><a data-act="alertgo" data-k="">Alle anzeigen</a><a data-act="alertsread">Alle als gelesen markieren</a></span></div><ul class="feed">${list || '<li class="muted">Keine Benachrichtigungen</li>'}</ul>`);
+  };
+  // Aus der Glocke direkt zur Meldung in „News & Ereignisse" springen
+  ACT.alertgo = (el, d) => {
+    UI.closePopover();
+    APP.alertsSeen = APP.S.day + 1;
+    UI.go('events');
+    setTimeout(() => {
+      const row = d.k ? [...document.querySelectorAll('#main [data-alert-key]')].find((x) => x.dataset.alertKey === d.k) : document.querySelector('#main [data-crit-alerts]');
+      if (row && G.GUIDE && G.GUIDE.spotEl) G.GUIDE.spotEl(row, d.k ? 'Diese Meldung' : 'Alle Benachrichtigungen');
+      else if (row) row.scrollIntoView({ block: 'center' });
+    }, 60);
   };
   ACT.alertsread = () => { APP.alertsSeen = APP.S.day + 1; UI.closePopover(); UI.renderTop(); };
   ACT.help = () => {

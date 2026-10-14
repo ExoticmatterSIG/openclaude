@@ -121,8 +121,10 @@
       const cal = (S.market.fx?.cal || []).map((n) => `<li><span class="sev"></span><span class="when">Saison</span><span class="what"><b>${esc(n)}</b></span></li>`).join('');
       const log = S.market.log.slice(0, 120).map((l) => `<li><span class="sev ${l.sev}"></span><span class="when">${U.fmtShort(U.dayToDate(S.startDate, l.day))}</span><span class="what"><b>${esc(l.name)}</b><div class="small muted">${esc(l.desc)}</div></span></li>`).join('');
       const news = S.market.news.slice(0, 30).map((n) => `<li><span class="sev"></span><span class="when">${U.fmtShort(U.dayToDate(S.startDate, n.day))}</span><span class="what">${esc(n.text)}</span></li>`).join('');
+      const alerts = S.alerts.map((a) => `<li data-alert-key="${esc(UI.alertKey(a))}"><span class="sev ${a.level}"></span><span class="when">${U.fmtShort(U.dayToDate(S.startDate, a.day))}</span><span class="what small">${esc(a.text)}</span></li>`).join('');
+      const alertsCard = `<div data-crit-alerts="1">${UI.card('Benachrichtigungen', alerts ? `<ul class="feed alertfeed">${alerts}</ul>` : '<div class="empty">Keine Benachrichtigungen.</div>', { flush: true, sub: S.alerts.length + ' Meldung(en)' })}</div>`;
       return UI.head('News & Ereignisse', '', { noScope: true, noRange: true })
-        + `<div class="grid g2"><div>${UI.card('Aktuell wirksam', act || cal ? `<ul class="feed">${act}${cal}</ul>` : '<div class="empty">Keine besonderen Ereignisse.</div>', { flush: true })}${UI.card('Branchennews', news ? `<ul class="feed">${news}</ul>` : '<div class="empty">–</div>', { flush: true })}</div><div>${UI.card('Ereignis-Chronik', log ? `<ul class="feed">${log}</ul>` : '<div class="empty">Noch keine Ereignisse.</div>', { flush: true })}</div></div>`;
+        + `<div class="grid g2"><div>${alertsCard}${UI.card('Aktuell wirksam', act || cal ? `<ul class="feed">${act}${cal}</ul>` : '<div class="empty">Keine besonderen Ereignisse.</div>', { flush: true })}${UI.card('Branchennews', news ? `<ul class="feed">${news}</ul>` : '<div class="empty">–</div>', { flush: true })}</div><div>${UI.card('Ereignis-Chronik', log ? `<ul class="feed">${log}</ul>` : '<div class="empty">Noch keine Ereignisse.</div>', { flush: true })}</div></div>`;
     },
   };
 

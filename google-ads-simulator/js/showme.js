@@ -84,6 +84,7 @@
     spotTimer = setTimeout(() => { el.classList.remove('gd-spot'); lb.remove(); }, 3200);
     return true;
   }
+  GD.spotEl = (el, label) => spot(el, label);
   GD.showMe = function (t, label) {
     if (UI.closeSheet) UI.closeSheet();
     UI.closeModal(); if (UI.hideTip) UI.hideTip();

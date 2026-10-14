@@ -170,6 +170,7 @@
     return prefs;
   };
   UI.setPref = function (k, v) { UI.prefs()[k] = v; try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) { /* nur im Speicher */ } };
+  if (UI.prefs().compare && UI.COMPARE && UI.COMPARE[UI.prefs().compare]) APP.compare = UI.prefs().compare;
   // Metrik-Spalten mit Spaltenauswahl
   UI._colDefaults = {};
   UI.mcolsFor = function (id, defaults) {
@@ -220,7 +221,7 @@
     const crumbs = `<div class="crumbs"><a data-act="scope" data-cid="">Alle Kampagnen</a>${c ? ` › <a data-act="scope" data-cid="${c.id}">${esc(c.name)}</a>` : ''}${ag ? ` › ${esc(ag.name)}` : ''}</div>`;
     const scopeSel = o.noScope ? '' : `<select data-chg="scope" title="Kampagne"><option value="">Alle Kampagnen</option>${UI.campOpts(APP.scope.cid)}</select>`;
     const agSel = o.agScope && c ? `<select data-chg="agscope" title="Anzeigengruppe"><option value="">Alle Anzeigengruppen</option>${M.agsOf(S, c.id).map((a) => `<option value="${a.id}" ${a.id === APP.scope.agid ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : '';
-    const rangeSel = o.noRange ? '' : `<select data-chg="range" title="Zeitraum">${Object.entries(UI.RANGES).map(([k, v]) => `<option value="${k}" ${k === APP.range ? 'selected' : ''}>${v}</option>`).join('')}</select><span class="muted small hide-sm">${UI.rangeLabel()}</span><select data-chg="compare" title="Vergleichen mit">${Object.entries(UI.COMPARE).map(([k, v]) => `<option value="${k}" ${k === APP.compare ? 'selected' : ''}>${k === 'off' ? v : 'Vgl.: ' + v}</option>`).join('')}</select>${APP.compare !== 'off' ? `<span class="muted small hide-sm" title="Vergleichszeitraum">${UI.cmpLabel()}</span>` : ''}`;
+    const rangeSel = o.noRange ? '' : `<select data-chg="range" title="Zeitraum">${Object.entries(UI.RANGES).map(([k, v]) => `<option value="${k}" ${k === APP.range ? 'selected' : ''}>${v}</option>`).join('')}</select><span class="muted small hide-sm">${UI.rangeLabel()}</span><select data-chg="compare" title="Vergleichen mit">${Object.entries(UI.COMPARE).map(([k, v]) => `<option value="${k}" ${k === APP.compare ? 'selected' : ''}>${k === 'off' ? v : 'Vgl.: ' + v}</option>`).join('')}</select>${APP.compare !== 'off' ? `<span class="muted small hide-sm" title="Vergleichszeitraum">${UI.cmpLabel()}</span><button class="cmpx" data-act="cmpoff" title="Vergleich entfernen" aria-label="Vergleich entfernen">✕</button>` : ''}`;
     return `<div class="pagehead"><div>${o.noScope ? '' : crumbs}<h1>${title}</h1></div><div class="tools">${scopeSel}${agSel}${rangeSel}${tools}</div></div>`;
   };
 
@@ -460,7 +461,8 @@
     chg_scope: (el) => { APP.scope = { cid: el.value || null, agid: null }; UI.render(true); },
     chg_agscope: (el) => { APP.scope.agid = el.value || null; UI.render(true); },
     chg_range: (el) => { APP.range = el.value; UI.render(true); },
-    chg_compare: (el) => { APP.compare = el.value; UI.render(true); },
+    chg_compare: (el) => { APP.compare = el.value; UI.setPref('compare', el.value); UI.render(true); },
+    cmpoff: () => { APP.compare = 'off'; UI.setPref('compare', 'off'); UI.render(true); },
     inp_tsearch: (el, d) => { APP.q[d.t] = el.value; UI.renderMain(true); const n = document.querySelector(`[data-inp="tsearch"][data-t="${d.t}"]`); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } },
     tab: (el, d) => { APP.tab[d.g] = d.v; UI.renderMain(true); },
     colpick: (el, d) => {
