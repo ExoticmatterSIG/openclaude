@@ -202,8 +202,15 @@
     const c = FORMS.createCampaign(APP.S, d);
     UI.closeModal();
     UI.toast('Kampagne „' + c.name + '" veröffentlicht', 'good');
-    APP.scope = { cid: c.id, agid: null };
+    // Alle Kampagnen zeigen (nicht auf die neue filtern) und die neue hervorheben
+    APP.scope = { cid: null, agid: null };
+    APP.q.camps = '';
     UI.go('campaigns');
+    setTimeout(() => {
+      const a = document.querySelector(`#main table.t a[data-act="scope"][data-cid="${c.id}"]`);
+      const row = a && a.closest('tr');
+      if (row && G.GUIDE && G.GUIDE.spotEl) G.GUIDE.spotEl(row, 'Neue Kampagne');
+    }, 80);
   };
   ACT.chg_bidtype = (el) => {
     const root = document.getElementById('modal-root');

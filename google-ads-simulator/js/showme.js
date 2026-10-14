@@ -78,10 +78,12 @@
     const lb = document.createElement('div');
     lb.className = 'gd-spotlabel'; lb.textContent = '👉 ' + label;
     document.body.appendChild(lb);
-    const place = () => { const r = el.getBoundingClientRect(); lb.style.top = Math.max(8, r.top - lb.offsetHeight - 8) + 'px'; lb.style.left = Math.max(8, Math.min(window.innerWidth - lb.offsetWidth - 8, r.left)) + 'px'; };
+    const place = () => { if (!el.isConnected) { lb.remove(); return; } const r = el.getBoundingClientRect(); lb.style.top = Math.max(8, r.top - lb.offsetHeight - 8) + 'px'; lb.style.left = Math.max(8, Math.min(window.innerWidth - lb.offsetWidth - 8, r.left)) + 'px'; };
     place(); setTimeout(place, 350); setTimeout(place, 700);
     clearTimeout(spotTimer);
     spotTimer = setTimeout(() => { el.classList.remove('gd-spot'); lb.remove(); }, 3200);
+    const watch = setInterval(() => { if (!el.isConnected || !lb.isConnected) { lb.remove(); clearInterval(watch); } }, 150);
+    setTimeout(() => clearInterval(watch), 3300);
     return true;
   }
   GD.spotEl = (el, label) => spot(el, label);

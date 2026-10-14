@@ -222,7 +222,8 @@
     const scopeSel = o.noScope ? '' : `<select data-chg="scope" title="Kampagne"><option value="">Alle Kampagnen</option>${UI.campOpts(APP.scope.cid)}</select>`;
     const agSel = o.agScope && c ? `<select data-chg="agscope" title="Anzeigengruppe"><option value="">Alle Anzeigengruppen</option>${M.agsOf(S, c.id).map((a) => `<option value="${a.id}" ${a.id === APP.scope.agid ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : '';
     const rangeSel = o.noRange ? '' : `<select data-chg="range" title="Zeitraum">${Object.entries(UI.RANGES).map(([k, v]) => `<option value="${k}" ${k === APP.range ? 'selected' : ''}>${v}</option>`).join('')}</select><span class="muted small hide-sm">${UI.rangeLabel()}</span><select data-chg="compare" title="Vergleichen mit">${Object.entries(UI.COMPARE).map(([k, v]) => `<option value="${k}" ${k === APP.compare ? 'selected' : ''}>${k === 'off' ? v : 'Vgl.: ' + v}</option>`).join('')}</select>${APP.compare !== 'off' ? `<span class="muted small hide-sm" title="Vergleichszeitraum">${UI.cmpLabel()}</span><button class="cmpx" data-act="cmpoff" title="Vergleich entfernen" aria-label="Vergleich entfernen">✕</button>` : ''}`;
-    return `<div class="pagehead"><div>${o.noScope ? '' : crumbs}<h1>${title}</h1></div><div class="tools">${scopeSel}${agSel}${rangeSel}${tools}</div></div>`;
+    const chip = !o.noScope && c ? `<span class="scopechip" title="Es werden nur Daten dieser ${ag ? 'Anzeigengruppe' : 'Kampagne'} angezeigt">Gefiltert: ${esc(ag ? ag.name : c.name)}<button data-act="scope" data-cid="" title="Filter aufheben – alle Kampagnen anzeigen" aria-label="Filter aufheben">✕</button></span>` : '';
+    return `<div class="pagehead"><div>${o.noScope ? '' : crumbs}<h1>${title}${chip}</h1></div><div class="tools">${scopeSel}${agSel}${rangeSel}${tools}</div></div>`;
   };
 
   // ---------- Modal / Toast / Popover ----------
