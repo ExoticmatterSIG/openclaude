@@ -1,0 +1,395 @@
+/* Ads Simulator – Zielvorgaben der Geschäftsleitung: Monatsbudget (Controlling) & Quartalsziele mit Konsequenzen */
+(function () {
+  const G = (globalThis.GA = globalThis.GA || {});
+  const U = G.U, M = G.M, E = G.E;
+  const GL = (G.GOALS = {});
+
+  function quarterOf(date) { return { y: date.getUTCFullYear(), q: Math.floor(date.getUTCMonth() / 3) }; }
+  function quarterEnd(date) { const { y, q } = quarterOf(date); return new Date(Date.UTC(y, q * 3 + 3, 0)); }
+  function dayOf(S, date) { return Math.round((date - U.parseISO(S.startDate)) / 86400000); }
+
+  GL.init = function (S) {
+    const ind = M.ind(S);
+    const diff = M.DIFFICULTY[S.settings.difficulty] || M.DIFFICULTY.normal;
+    const g = diff.goal || 1;
+    const base = M.STARTER_BUDGET[ind.id] || 100;
+    const start = M.today(S);
+    let qEnd = quarterEnd(start);
+    if (dayOf(S, qEnd) - S.day < 45) qEnd = quarterEnd(U.addDays(qEnd, 5)); // Rumpfquartal mit dem Folgequartal zusammenfassen
+    S.goals = {
+      monthBudget: Math.round((ind.bank ? 14000 : base * 30.4 * 1.6) / 100) * 100,
+      periodStart: S.day, periodEnd: dayOf(S, qEnd), mult: g, history: [], months: [], failStreak: 0, penalty: 0, score: 0,
+      trust: 60, sanction: 0, pip: null, mkt: 1, trustHist: [], events: [], cashNegDays: 0,
+    };
+    GL.setTargets(S);
+  };
+
+  GL.setTargets = function (S) {
+    const ind = M.ind(S), g = S.goals, len = g.periodEnd - g.periodStart + 1, m = g.mult;
+    if (ind.bank) {
+      g.targets = [
+        { id: 'vol', name: 'Neuvolumen Einlagen (Tages- & Festgeld)', unit: 'eur', dir: 'min', value: Math.round((12e6 * m * len) / 91 / 1e5) * 1e5 },
+        { id: 'cpk', name: 'Werbekosten je 1.000 € Neuvolumen', unit: 'eur2', dir: 'max', value: +(2.5 / m).toFixed(2) },
+        { id: 'rej', name: 'Anteil abgelehnter Privatkunden-Anträge', unit: 'pct', dir: 'max', value: +(0.35 / m).toFixed(2) },
+        { id: 'accts', name: 'Neue Geschäftskonten & Visa-Karten', unit: 'int', dir: 'min', value: Math.round((40 * m * len) / 91) },
+      ];
+    } else {
+      const base = M.STARTER_BUDGET[ind.id] || 100;
+      const be = 1 / ind.margin;
+      g.targets = [
+        { id: 'profit', name: 'Marketing-Deckungsbeitrag (Rohertrag − Werbe- & Projektkosten)', unit: 'eur', dir: 'min', value: Math.round((base * len * 1.0 * m) / 100) * 100 },
+        { id: 'rroas', name: 'Echter ROAS (Umsatz ÷ Werbekosten)', unit: 'num', dir: 'min', value: +(be * 1.25 * Math.sqrt(m)).toFixed(2) },
+        { id: 'conv', name: 'Echte Conversions', unit: 'int', dir: 'min', value: Math.round((base / (ind.aov * ind.margin * 0.45)) * len * m) },
+      ];
+    }
+    for (const t of g.targets) {
+      t.capped = false;
+      // Planung auf Basis des Vorquartals: Ist + 8 % Wachstum (die Messlatte steigt mit dem Erfolg)
+      const last = g.lastActual && g.lastActual[t.id];
+      if (last !== undefined && last !== null && SCALABLE.has(t.id) && last > 0) t.value = Math.max(t.value, last * len * 1.08 * U.clamp(g.monthBudget / (g.lastBudget || g.monthBudget), 0.5, 1.5));
+      t.base = t.value;
+      if (SCALABLE.has(t.id)) t.value = GL.round(t.base * (g.mkt || 1));
+    }
+    g.planBudget = g.monthBudget;
+  };
+  const SCALABLE = new Set(['vol', 'accts', 'profit', 'conv']);
+  GL.round = (v) => (v >= 1e5 ? Math.round(v / 1e5) * 1e5 : v >= 1000 ? Math.round(v / 100) * 100 : Math.round(v));
+
+  // Marktlage der letzten 21 Tage (Nachfrage inkl. Saison & Ereignisse) – Ziele werden daran angepasst
+  GL.marketFactor = function (S) {
+    const h = S.market.hist.slice(-21);
+    if (!h.length) return 1;
+    const ind = M.ind(S);
+    const season = U.avg(h, (x) => ind.season[U.dayToDate(S.startDate, x.day).getUTCMonth()]);
+    return U.clamp(U.avg(h, (x) => x.demand) * Math.pow(season, 0.7), 0.7, 1.35);
+  };
+
+  // ---------- Zielvereinbarung: genehmigte Investitionen werden eingeplant ----------
+  // Genehmigte Personalkosten werden voll, Marketing-Aktionen zu 80 % vom Deckungsbeitragsziel abgezogen.
+  // Im Gegenzug erwartet die Geschäftsleitung je Teammitglied +2 % mehr Deckungsbeitrag aus den Anzeigen (max. +10 %).
+  GL.RELIEF = { staff: 1, act: 0.8, uplift: 0.02, upliftMax: 0.1 };
+  GL.relief = function (S) {
+    const g = S.goals, MK = G.MKT;
+    if (!g || !MK || !S.mkt) return { total: 0, staff: 0, act: 0, future: 0 };
+    const a = g.periodStart, b = S.day - 1, remaining = Math.max(0, g.periodEnd - S.day + 1);
+    const staffSoFar = MK.costSum(S, a, b, ['staff']), future = MK.dailyStaff(S) * remaining, act = MK.costSum(S, a, b, ['act']) + MK.costSum(S, S.day, S.day, ['act']);
+    const staff = staffSoFar + future;
+    const heads = S.mkt.staff.filter((p) => p.status === 'active').length;
+    return { total: staff * GL.RELIEF.staff + act * GL.RELIEF.act, staff, act, future, uplift: Math.min(GL.RELIEF.upliftMax, heads * GL.RELIEF.uplift) };
+  };
+  // Eingeplante Investitionen im Zeitraum (zählen nicht gegen das Deckungsbeitragsziel)
+  GL.plannedCosts = (S, a, b) => (G.MKT && S.mkt ? G.MKT.costSum(S, a, b, ['staff']) * GL.RELIEF.staff + G.MKT.costSum(S, a, b, ['act']) * GL.RELIEF.act : 0);
+  // Marketing-Kosten (Team, Aktionen, Abfindungen, Strafen) im Zeitraum – für den Deckungsbeitrag nur aus Anzeigen
+  GL.mktCosts = (S, a, b) => (G.MKT && S.mkt ? G.MKT.costSum(S, a, b) : 0);
+
+  // ---------- Machbarkeit: Ziele an Budget & erreichbare Effizienz koppeln ----------
+  GL.initBudget = function (S) {
+    const ind = M.ind(S), base = M.STARTER_BUDGET[ind.id] || 100;
+    return Math.round((ind.bank ? 14000 : base * 30.4 * 1.6) / 100) * 100;
+  };
+  // Erreichbare Menge pro Werbe-Euro: beobachtete Effizienz (60 Tage), mind. 60 % des Branchen-Benchmarks
+  GL.efficiency = function (S) {
+    const ind = M.ind(S), a = Math.max(0, S.day - 60), b = S.day - 1;
+    const cost = E.sumRange(S, 'acct', 'all', a, b)[E.I.cost];
+    const out = {};
+    if (S.bank) {
+      let vol = 0, accts = 0;
+      for (let d = a; d <= b; d++) { const f = S.bank.flows[d]; if (f) { vol += f.inTG + f.inFG; accts += f.nGiro + f.nVisa; } }
+      out.vol = Math.max(cost > 500 ? vol / cost : 0, 400); // Benchmark: 2,50 € je 1.000 € Neuvolumen
+      out.accts = Math.max(cost > 500 ? accts / cost : 0, 1 / 350);
+    } else {
+      let conv = 0, gross = 0, ads = 0, other = 0;
+      for (let d = a; d <= b; d++) { const p = S.pnl[d]; if (p) { conv += p.conv; gross += p.gross; ads += p.ads; other += p.other; } }
+      const fixed = (S.company.fixedPerDay || 0) * (b - a + 1);
+      const bench = 1 / (ind.aov * ind.margin * 0.45);
+      out.conv = Math.max(cost > 500 ? conv / cost : 0, bench * 0.6);
+      out.profit = Math.max(cost > 500 ? (gross - ads - (other - fixed) + GL.plannedCosts(S, a, b)) / cost : 0, 0.3);
+    }
+    return out;
+  };
+  // Täglich: Budgetuntergrenze sichern und Mengenziele auf das Erreichbare begrenzen (+20 % Stretch)
+  GL.enforce = function (S) {
+    const g = S.goals; if (!g || !g.targets) return;
+    g.initBudget = g.initBudget || GL.initBudget(S);
+    g.monthBudget = Math.max(g.monthBudget, Math.round((g.initBudget * 0.5) / 100) * 100);
+    const eff = GL.efficiency(S), prog = GL.progress(S);
+    const remaining = Math.max(0, g.periodEnd - S.day + 1);
+    const daily = g.monthBudget / 30.4;
+    // Verhältnisziele: höchstens 20 % besser als der aktuelle 60-Tage-Wert (mindestens kostendeckend)
+    const cur = GL.progress(S, Math.max(0, S.day - 60), S.day - 1);
+    const be = 1 / M.ind(S).margin;
+    for (const t of g.targets) {
+      if (eff[t.id]) continue;
+      const v = cur[t.id];
+      if (v === null || v === undefined || S.day < 30) continue;
+      if (t.dir === 'max') { const lim = +(v * 0.8).toFixed(2); if (t.value < lim) { t.value = lim; t.capped = true; } }
+      else { const lim = +Math.max(v * 1.2, be * 1.05).toFixed(2); if (t.value > lim) { t.value = lim; t.capped = true; } }
+    }
+    // Mengenziele dynamisch: Marktlage × Budgetänderungen im laufenden Quartal (nur der Restzeitraum skaliert) − eingeplante Investitionen
+    const len = g.periodEnd - g.periodStart + 1, r = U.clamp(remaining / len, 0, 1);
+    const bf = U.clamp(g.monthBudget / (g.planBudget || g.monthBudget), 0.5, 1.6);
+    const rel = GL.relief(S);
+    g.relief = rel;
+    for (const t of g.targets) {
+      if (!SCALABLE.has(t.id) || t.base === undefined) continue;
+      t.plan = GL.round(t.base * (g.mkt || 1) * ((1 - r) + r * bf) * (t.id === 'profit' ? 1 + (rel.uplift || 0) : 1));
+      t.relief = t.id === 'profit' ? GL.round(rel.total) : 0; // eingeplant, zählt nicht gegen das Ziel
+      t.value = t.plan;
+      t.capped = false;
+    }
+    for (const t of g.targets) {
+      if (!eff[t.id] || t.dir !== 'min') continue;
+      const cap = GL.round((prog[t.id] || 0) + eff[t.id] * 1.2 * daily * remaining);
+      if (t.value > cap) { t.value = Math.max(cap, 1); t.capped = true; }
+    }
+  };
+  // Was müsste ab heute je 100 € Budget erreicht werden?
+  GL.required = function (S, t) {
+    const g = S.goals, prog = GL.progress(S), eff = GL.efficiency(S);
+    if (!eff[t.id] || t.dir !== 'min') return null;
+    const remaining = Math.max(1, g.periodEnd - S.day + 1);
+    const need = Math.max(0, t.value - (prog[t.id] || 0)) / ((g.monthBudget / 30.4) * remaining);
+    const a = Math.max(0, S.day - 30), cost = E.sumRange(S, 'acct', 'all', a, S.day - 1)[E.I.cost];
+    let cur = null;
+    if (cost > 200) {
+      if (S.bank) { let v = 0, n = 0; for (let d = a; d < S.day; d++) { const f = S.bank.flows[d]; if (f) { v += f.inTG + f.inFG; n += f.nGiro + f.nVisa; } } cur = t.id === 'vol' ? v / cost : n / cost; }
+      else { let c = 0, gr = 0, ad = 0, ot = 0; for (let d = a; d < S.day; d++) { const p = S.pnl[d]; if (p) { c += p.conv; gr += p.gross; ad += p.ads; ot += p.other; } } cur = t.id === 'conv' ? c / cost : (gr - ad - (ot - (S.company.fixedPerDay || 0) * (S.day - a)) + GL.plannedCosts(S, a, S.day - 1)) / cost; }
+    }
+    return { need: need * 100, cur: cur === null ? null : cur * 100 };
+  };
+
+  // ---------- Vertrauen der Geschäftsleitung & Sanktionen ----------
+  const LEVELS = [
+    { name: 'Keine', min: 50 },
+    { name: 'Verwarnung', min: 35 },
+    { name: 'Abmahnung & Budgetkürzung', min: 20 },
+    { name: 'Bewährungsplan (45 Tage)', min: 0.0001 },
+  ];
+  GL.LEVELS = LEVELS;
+  GL.changeTrust = function (S, delta, reason) {
+    const g = S.goals; if (!g || S.gameOver) return;
+    g.trust = U.clamp((g.trust ?? 60) + delta, 0, 100);
+    g.trustHist.unshift({ day: S.day, delta: Math.round(delta), reason, trust: Math.round(g.trust) });
+    if (g.trustHist.length > 80) g.trustHist.length = 80;
+    GL.updateSanctions(S);
+  };
+  GL.updateSanctions = function (S) {
+    const g = S.goals;
+    if (g.trust <= 0) return GL.gameOver(S, 'fired', 'Die Geschäftsleitung hat das Vertrauen vollständig verloren. Sie wurden mit sofortiger Wirkung freigestellt.');
+    const lvl = g.trust >= 50 ? 0 : g.trust >= 35 ? 1 : g.trust >= 20 ? 2 : 3;
+    if (g.trust >= 55 && g.sanction > 0) { g.sanction = 0; g.pip = null; S.alerts.unshift({ day: S.day, level: 'good', text: 'Die Geschäftsleitung ist wieder zufrieden – alle Sanktionen aufgehoben.' }); return; }
+    if (lvl <= g.sanction) return;
+    g.sanction = lvl;
+    const msg = {
+      1: 'Verwarnung: Die Geschäftsleitung ist mit der Entwicklung unzufrieden und erwartet eine schnelle Kurskorrektur.',
+      2: 'Abmahnung: Das Monatsbudget wird um 15 % gekürzt. Weitere Verfehlungen führen zu einem Bewährungsplan.',
+      3: 'Bewährungsplan: Sie haben 45 Tage, um das Vertrauen auf mindestens 35 Punkte zu bringen – sonst folgt die Kündigung.',
+    }[lvl];
+    if (lvl === 2) g.monthBudget = Math.round((g.monthBudget * 0.85) / 100) * 100;
+    if (lvl === 3) g.pip = { until: S.day + 45, start: S.day };
+    S.alerts.unshift({ day: S.day, level: 'bad', text: '🧑‍💼 ' + msg });
+    S.market.log.unshift({ day: S.day, name: 'Geschäftsleitung: ' + LEVELS[lvl].name, desc: msg, sev: 'crit' });
+    S._pauseRequest = S._pauseRequest || LEVELS[lvl].name;
+  };
+  GL.gameOver = function (S, kind, text) {
+    if (S.gameOver) return;
+    let profit = 0; for (const p of Object.values(S.pnl)) profit += p.profit;
+    S.gameOver = { kind, text, day: S.day, profit, score: S.goals ? S.goals.score : 0, quarters: S.goals ? S.goals.history.length : 0 };
+    S.alerts.unshift({ day: S.day, level: 'bad', text: '⛔ Spiel beendet: ' + text });
+    S._pauseRequest = 'Spiel beendet';
+  };
+
+  // ---------- Kredite ----------
+  GL.creditLimit = (S) => Math.round(S.company.startCash * (S.bank ? 0.5 : 1.5));
+  GL.rate = (S) => (S.bank ? 0.04 : 0.095);
+  GL.borrow = function (S, amt) {
+    const c = S.company, room = GL.creditLimit(S) - (c.debt || 0);
+    amt = Math.min(amt, room);
+    if (amt <= 0) return 0;
+    c.debt = (c.debt || 0) + amt; c.cash += amt;
+    M.log(S, 'Unternehmen', 'Kredit', 'Aufgenommen: ' + U.fmt.eur0(amt) + ' (' + U.fmt.pct(GL.rate(S), 1) + ' p. a.)');
+    if (c.cash > 0) S.account.paymentOk = true;
+    return amt;
+  };
+  GL.repay = function (S, amt) {
+    const c = S.company;
+    amt = Math.min(amt, c.debt || 0, Math.max(0, c.cash));
+    if (amt <= 0) return 0;
+    c.debt -= amt; c.cash -= amt;
+    M.log(S, 'Unternehmen', 'Kredit', 'Getilgt: ' + U.fmt.eur0(amt));
+    return amt;
+  };
+
+  // ---------- Ad-hoc-Vorgaben der Geschäftsleitung ----------
+  // Ad-hoc-Vorgaben der Geschäftsleitung. p = Basiswahrscheinlichkeit/Tag, cd = Abklingzeit in Tagen, w(S) = situativer Faktor
+  const measureGap = (S) => { const v = E.derive(E.sumRange(S, 'acct', 'all', Math.max(0, S.day - 60), S.day - 1)); return v.rconv > 0 ? Math.max(0, 1 - v.conv / v.rconv) : 0; };
+  const onTrack = (S) => { const g = S.goals; const prog = GL.progress(S); const el = U.clamp((S.day - g.periodStart) / Math.max(1, g.periodEnd - g.periodStart + 1), 0, 1); return g.targets.filter((t) => (t.dir === 'min' ? U.div(prog[t.id] || 0, t.value) >= el * 0.95 : GL.met(t, prog[t.id]))).length / Math.max(1, g.targets.length); };
+  const MGMT = [
+    { id: 'spar', p: 0.003, cd: 150, name: 'Sparrunde', desc: 'Die Geschäftsführung verordnet eine Sparrunde: Monatsbudget −20 % ab sofort.', w: (S) => (S.market.fx && S.market.fx.cvr < 0.95 ? 1.8 : 1), fx: (S, g) => { g.monthBudget = Math.round((g.monthBudget * 0.8) / 100) * 100; } },
+    { id: 'push', p: 0.003, cd: 150, name: 'Wachstumsoffensive', desc: 'Der Vorstand will mehr Wachstum: Mengenziele +15 %, Monatsbudget +10 %.', w: (S) => (onTrack(S) > 0.6 ? 1.5 : 0.6), fx: (S, g) => { g.mult *= 1.15; g.monthBudget = Math.round((g.monthBudget * 1.1) / 100) * 100; GL.setTargets(S); } },
+    // Revision: umso wahrscheinlicher, je größer die Messlücke – bei sauberem Reporting selten
+    { id: 'audit', p: 0.0012, cd: 180, name: 'Interne Revision prüft Ihr Reporting', desc: 'Die Revision vergleicht gemeldete Conversions mit den echten Geschäftszahlen.', w: (S) => { const gap = measureGap(S); return (!S.account.trackingOk ? 4 : gap > 0.3 ? 2.5 : gap > 0.2 ? 1.2 : 0.35); }, fx: (S, g, ev) => {
+      const gap = measureGap(S), issues = [];
+      if (!S.account.trackingOk) issues.push('tracking');
+      if (S.account.consentMode !== 'advanced') issues.push('consent');
+      if (!S.account.enhancedConv) issues.push('ec');
+      if (!S.account.autoTagging) issues.push('tag');
+      const bad = gap > 0.3 || !S.account.trackingOk;
+      ev.result = bad ? 'bad' : 'ok'; ev.gap = gap; ev.issues = issues;
+      ev.desc = bad ? `Ergebnis: Das Reporting weicht um ${Math.round(gap * 100)} % von den echten Zahlen ab${issues.length ? ' – Mängel: ' + issues.map((i) => ({ tracking: 'Tracking-Ausfall', consent: 'kein erweiterter Consent Mode', ec: 'keine erweiterten Conversions', tag: 'automatisches Tagging aus' }[i])).join(', ') : ''}.` : `Ergebnis: Reporting sauber (Abweichung ${Math.round(gap * 100)} %). Die Geschäftsleitung ist zufrieden.`;
+      if (bad) GL.changeTrust(S, -8, 'Revision: große Lücke zwischen Reporting und Realität'); else GL.changeTrust(S, 4, 'Revision: sauberes Reporting');
+    } },
+    { id: 'review', p: 0.002, cd: 90, name: 'Vorstand fordert KPI-Präsentation', desc: 'Sie stellen dem Vorstand die Zielerreichung vor.', fx: (S, g, ev) => { const r = onTrack(S); ev.result = r >= 0.6 ? 'ok' : 'bad'; ev.desc = r >= 0.6 ? `Ergebnis: ${Math.round(r * 100)} % der Ziele im Plan – der Vorstand ist überzeugt.` : `Ergebnis: Nur ${Math.round(r * 100)} % der Ziele im Plan – der Vorstand ist skeptisch.`; GL.changeTrust(S, r >= 0.6 ? 3 : -4, 'KPI-Präsentation'); } },
+    { id: 'bonus', p: 0.0015, cd: 120, name: 'Restbudget aus einer anderen Abteilung', desc: 'Eine andere Abteilung gibt Budget ab: Monatsbudget +15 % für diesen Monat.', w: (S) => (S.goals.trust >= 60 ? 1.5 : 0.5), fx: (S, g) => { if (!g.bonusBase) g.bonusBase = g.monthBudget; g.monthBudget = Math.round((g.monthBudget * 1.15) / 100) * 100; g.bonusMonth = U.dayToDate(S.startDate, S.day).getUTCMonth(); } },
+    { id: 'freeze', p: 0.0015, cd: 150, name: 'Einstellungsstopp', desc: 'Konzernweiter Einstellungsstopp für 60 Tage: keine neuen Mitarbeitenden oder Freelancer.', w: (S) => (S.market.fx && S.market.fx.cvr < 0.95 ? 2 : 1), fx: (S, g) => { g.freezeUntil = S.day + 60; } },
+    { id: 'praise', p: 0.002, cd: 120, name: 'Lob vom Vorstand', desc: 'Der Vorstand lobt die Entwicklung im Online-Marketing.', w: (S) => (onTrack(S) >= 0.8 && S.goals.trust >= 55 ? 1.5 : 0), fx: (S) => GL.changeTrust(S, 5, 'Lob vom Vorstand') },
+    { id: 'newboss', p: 0.0008, cd: 365, name: 'Neue Geschäftsführung', desc: 'Eine neue Geschäftsführung übernimmt. Die Ziele steigen um 10 %, das Vertrauen startet neu bei 50.', fx: (S, g) => { g.mult *= 1.1; g.trust = 50; g.sanction = 0; g.pip = null; GL.setTargets(S); } },
+  ];
+  GL.MGMT = MGMT;
+
+  // Vertrauens-Update zum Monatsende anhand der zeitanteiligen Zielerreichung
+  function monthlyReview(S, overspent) {
+    const g = S.goals, prog = GL.progress(S);
+    const elapsed = U.clamp((S.day - g.periodStart) / Math.max(1, g.periodEnd - g.periodStart + 1), 0.05, 1);
+    let delta = 0;
+    const notes = [];
+    for (const t of g.targets) {
+      const v = prog[t.id];
+      const ok = t.dir === 'min' ? (v || 0) >= t.value * elapsed * 0.92 : GL.met(t, v);
+      delta += ok ? 4 : -6;
+      if (!ok) notes.push(t.name);
+    }
+    if (overspent) { delta -= 10; notes.push('Budgetüberschreitung'); }
+    const debt = S.company.debt || 0;
+    if (debt > GL.creditLimit(S) * 0.5) { delta -= 4; notes.push('hohe Verschuldung'); }
+    GL.changeTrust(S, delta, notes.length ? 'Monatsreview – kritisch: ' + notes.join(', ') : 'Monatsreview – alle Ziele auf Kurs');
+  }
+
+  // Aktuelle Werte im Zielzeitraum
+  GL.progress = function (S, from, to) {
+    const g = S.goals, a = from ?? g.periodStart, b = to ?? Math.min(S.day - 1, g.periodEnd);
+    const acct = E.sumRange(S, 'acct', 'all', a, b);
+    const out = {};
+    if (S.bank) {
+      let inV = 0, apps = 0, rej = 0, accts = 0;
+      for (let d = a; d <= b; d++) { const f = S.bank.flows[d]; if (f) { inV += f.inTG + f.inFG; apps += f.apps; rej += f.rejects; accts += f.nGiro + f.nVisa; } }
+      out.vol = inV; out.cpk = inV ? (acct[E.I.cost] / inV) * 1000 : null; out.rej = apps ? rej / apps : null; out.accts = accts;
+    } else {
+      let gross = 0, ads = 0, other = 0, rev = 0, conv = 0;
+      for (let d = a; d <= b; d++) { const p = S.pnl[d]; if (p) { gross += p.gross; ads += p.ads; other += p.other; rev += p.rev; conv += p.conv; } }
+      const fixed = (S.company.fixedPerDay || 0) * (b - a + 1);
+      out.profit = gross - ads - (other - fixed) + GL.plannedCosts(S, a, b); out.rroas = ads ? rev / ads : null; out.conv = conv;
+    }
+    return out;
+  };
+  GL.met = (t, v) => v !== null && v !== undefined && (t.dir === 'min' ? v >= t.value : v <= t.value);
+  GL.fmt = function (t, v) {
+    const f = U.fmt;
+    if (v === null || v === undefined) return '–';
+    return t.unit === 'eur' ? (Math.abs(v) >= 1e6 ? f.num2(v / 1e6) + ' Mio. €' : f.eur0(v)) : t.unit === 'eur2' ? f.eur(v) : t.unit === 'pct' ? f.pct(v, 0) : t.unit === 'int' ? f.int(v) : f.num2(v);
+  };
+  GL.monthSpend = function (S) {
+    const date = M.today(S);
+    const ms = S.day - (date.getUTCDate() - 1);
+    return E.sumRange(S, 'acct', 'all', ms, S.day - 1)[E.I.cost];
+  };
+
+  // Täglich nach der Simulation aufgerufen (S.day ist bereits der neue Tag)
+  GL.daily = function (S, rng) {
+    if (!S.goals) GL.init(S);
+    if (S.gameOver) return;
+    const g = S.goals, date = M.today(S), prevDay = S.day - 1;
+    if (g.trust === undefined) Object.assign(g, { trust: 60, sanction: 0, pip: null, mkt: 1, trustHist: [], events: [], cashNegDays: 0 });
+    let overspent = false;
+    // Kreditzinsen
+    const c = S.company;
+    if (c.debt > 0) S._otherCosts = (S._otherCosts || 0) + (c.debt * GL.rate(S)) / 365;
+    // Insolvenz: Kasse dauerhaft negativ und Kreditrahmen ausgeschöpft
+    if (c.cash < 0 && (c.debt || 0) >= GL.creditLimit(S) - 1) {
+      g.cashNegDays++;
+      if (g.cashNegDays === 1) S.alerts.unshift({ day: S.day, level: 'bad', text: 'Liquiditätskrise: Kasse negativ und Kreditrahmen ausgeschöpft. In 30 Tagen droht die Insolvenz.' });
+      if (g.cashNegDays >= 30) return GL.gameOver(S, 'insolvent', S.bank ? 'Das Marketingbudget ist aufgebraucht und der Budgetvorschuss ausgeschöpft. Der Bereich wird aufgelöst.' : 'Das Unternehmen ist zahlungsunfähig. Der Insolvenzverwalter übernimmt.');
+    } else g.cashNegDays = 0;
+    // Bewährungsplan
+    if (g.pip && S.day >= g.pip.until) {
+      if (g.trust < 35) return GL.gameOver(S, 'fired', 'Der Bewährungsplan ist abgelaufen, ohne dass das Vertrauen der Geschäftsleitung zurückgewonnen wurde. Ihnen wurde gekündigt.');
+      g.pip = null; g.sanction = 1;
+      S.alerts.unshift({ day: S.day, level: 'good', text: 'Bewährungsplan bestanden. Die Geschäftsleitung beobachtet Sie aber weiter genau.' });
+    }
+    // Ad-hoc-Vorgaben
+    if (S.day > 20 && rng) {
+      g.mgmtLast = g.mgmtLast || {};
+      const lastAny = Math.max(-999, ...Object.values(g.mgmtLast));
+      if (S.day - lastAny >= 30) for (const ev of MGMT) {
+        if (S.day - (g.mgmtLast[ev.id] ?? -999) < ev.cd) continue;
+        const w = ev.w ? ev.w(S) : 1;
+        if (w > 0 && rng() < ev.p * w * (M.DIFFICULTY[S.settings.difficulty]?.events || 1)) {
+          const rec = { day: S.day, name: ev.name, id: ev.id, desc: ev.desc };
+          ev.fx(S, g, rec);
+          g.mgmtLast[ev.id] = S.day;
+          g.events.unshift(rec);
+          S.market.log.unshift({ day: S.day, name: 'Geschäftsleitung: ' + ev.name, desc: rec.desc, sev: rec.result === 'ok' ? 'info' : 'warn' });
+          S.alerts.unshift({ day: S.day, level: rec.result === 'ok' ? 'good' : 'warn', text: '🧑‍💼 ' + ev.name + ': ' + rec.desc });
+          if (rec.result !== 'ok') S._pauseRequest = S._pauseRequest || ev.name;
+          break;
+        }
+      }
+    }
+    // Monatsabschluss (Controlling)
+    if (date.getUTCDate() === 1 && prevDay >= 0) {
+      if (S.guidePauseMonth) { const ids = S.guidePauseMonth.ids; S.guidePauseMonth = null; const cs = S.campaigns.filter((c) => ids.includes(c.id) && c.status === 'paused'); for (const c of cs) M.setStatus(S, 'Kampagne', c, 'enabled'); if (cs.length) S.alerts.unshift({ day: S.day, level: 'info', text: `Neuer Monat: ${cs.length} bis Monatsende pausierte Kampagne(n) wieder aktiviert. Tagesbudgets an das neue Monatsbudget anpassen.` }); }
+      const pd = U.addDays(date, -1);
+      const ms = prevDay - (pd.getUTCDate() - 1);
+      const spend = E.sumRange(S, 'acct', 'all', Math.max(0, ms), prevDay)[E.I.cost];
+      const ratio = spend / g.monthBudget;
+      const rec = { month: U.MONTHS[pd.getUTCMonth()] + ' ' + pd.getUTCFullYear(), budget: g.monthBudget, spend };
+      g.months.unshift(rec);
+      if (ratio > 1.05) {
+        overspent = true;
+        const cut = Math.min(Math.round((spend - g.monthBudget) / 100) * 100, Math.round((g.monthBudget * 0.25) / 100) * 100);
+        g.penalty += 5;
+        g.monthBudget = Math.max(1000, g.monthBudget - cut);
+        S.alerts.unshift({ day: S.day, level: 'bad', text: `Controlling: Werbebudget im ${rec.month} um ${U.fmt.pct(ratio - 1, 0)} überschritten. Die Überschreitung wird vom Budget des Folgemonats abgezogen (${U.fmt.eur0(g.monthBudget)}).` });
+        S._pauseRequest = S._pauseRequest || 'Budgetüberschreitung';
+      } else if (ratio < 0.7) {
+        S.alerts.unshift({ day: S.day, level: 'warn', text: `Controlling: Nur ${U.fmt.pct(ratio, 0)} des Monatsbudgets genutzt. Nicht genutzte Mittel verfallen.` });
+      }
+      if (prevDay !== g.periodEnd) monthlyReview(S, overspent);
+      if (g.bonusBase) { g.monthBudget = Math.round(g.monthBudget / 1.15 / 100) * 100; g.bonusBase = null; S.alerts.unshift({ day: S.day, level: 'info', text: 'Controlling: Das Zusatzbudget der anderen Abteilung ist ausgelaufen.' }); }
+      // Dynamische Ziele: Anpassung an die Marktlage
+      const mf = GL.marketFactor(S);
+      if (Math.abs(mf - g.mkt) > 0.06) {
+        const old = g.mkt; g.mkt = mf;
+        S.alerts.unshift({ day: S.day, level: 'info', text: `Forecast-Anpassung: Die Geschäftsleitung passt die Mengenziele an die Marktlage an (${mf > old ? '+' : ''}${Math.round((mf / old - 1) * 100)} %).` });
+      }
+    }
+    // Quartalsbewertung
+    if (prevDay === g.periodEnd) {
+      const prog = GL.progress(S);
+      const res = g.targets.map((t) => ({ ...t, actual: prog[t.id], met: GL.met(t, prog[t.id]) }));
+      const misses = res.filter((r) => !r.met).length;
+      const grade = misses === 0 ? 'A' : misses === 1 ? 'B' : misses === 2 ? 'C' : 'D';
+      const pts = { A: 100, B: 70, C: 40, D: 10 }[grade] - g.penalty;
+      g.score += pts;
+      let consequence = '';
+      if (grade === 'A') { g.monthBudget = Math.round((g.monthBudget * 1.15) / 100) * 100; g.failStreak = 0; consequence = 'Budget +15 %'; }
+      else if (grade === 'B') { g.failStreak = 0; consequence = 'Budget unverändert'; }
+      else { g.failStreak++; if (g.failStreak >= 2) { g.monthBudget = Math.round((g.monthBudget * 0.75) / 100) * 100; consequence = 'Zweites verfehltes Quartal in Folge: Budget −25 %'; } else consequence = 'Verwarnung durch die Geschäftsleitung'; }
+      g.history.unshift({ from: g.periodStart, to: g.periodEnd, grade, pts, results: res, consequence, penalty: g.penalty });
+      S.alerts.unshift({ day: S.day, level: grade <= 'B' ? 'good' : 'bad', text: `Quartalsbewertung: Note ${grade} (${misses} von ${res.length} Zielen verfehlt). ${consequence}.` });
+      S._pauseRequest = S._pauseRequest || 'Quartalsbewertung';
+      g.penalty = 0;
+      g.periodStart = S.day;
+      g.periodEnd = dayOf(S, quarterEnd(date));
+      if (g.periodEnd - g.periodStart < 20) g.periodEnd = dayOf(S, quarterEnd(U.addDays(quarterEnd(date), 5)));
+      const qLen = g.history[0].to - g.history[0].from + 1; // Länge des bewerteten Quartals
+      g.lastBudget = g.monthBudget;
+      g.lastActual = Object.fromEntries(res.map((r) => [r.id, typeof r.actual === 'number' ? r.actual / qLen : null]));
+      if (grade === 'A') g.mult *= 1.03; // Erfolg hebt die Messlatte
+      if (grade === 'D') g.mult *= 0.95;
+      GL.setTargets(S);
+      GL.changeTrust(S, { A: 14, B: 5, C: -10, D: -20 }[grade] - (overspent ? 10 : 0), 'Quartalsbewertung: Note ' + grade);
+    }
+    GL.enforce(S);
+  };
+})();
